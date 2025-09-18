@@ -1,15 +1,17 @@
-import random
 import numpy as np
 import tensorflow as tf
-from config import *
+from typing import Optional, Any
+from config import MODEL_PATH, LOG_MODEL_LOAD_OK, LOG_MODEL_LOAD_ERROR, LOG_MODEL_FALLBACK, LOG_MODEL_NOT_LOADED, LOG_MODEL_PREPROCESS_FAIL, LOG_PREFIX_MODEL, LOG_MODEL_CLASSIFICATION, WASTE_TYPES, CONFIDENCE_THRESHOLD, LOG_MODEL_LOW_CONFIDENCE, LOG_MODEL_CLASSIFICATION_ERROR
 from camera import preprocess_image
 from utils import log_message, log_error, log_info, log_success, random_waste_fallback
 
-# -------------------------
-# Main Functions
-# -------------------------
-def load_model():
-    """Loads the machine learning model"""
+def load_model() -> Optional[Any]:
+    """
+    Load the machine learning model.
+    
+    Returns:
+        Optional[Any]: Loaded model or None if failed
+    """
     try:
         model = tf.keras.models.load_model(MODEL_PATH)
         log_success(LOG_MODEL_LOAD_OK)
@@ -19,8 +21,17 @@ def load_model():
         log_info(LOG_MODEL_FALLBACK)
         return None
 
-def classify_waste(model, image):
-    """Classifies the type of waste in the image"""
+def classify_waste(model: Optional[Any], image: np.ndarray) -> Optional[int]:
+    """
+    Classify the type of waste in the image.
+    
+    Args:
+        model: Loaded ML model or None
+        image: Input image for classification
+        
+    Returns:
+        Optional[int]: Waste type or None if classification failed
+    """
     if model is None:
         return random_waste_fallback(LOG_MODEL_NOT_LOADED)
 
@@ -47,8 +58,16 @@ def classify_waste(model, image):
     except Exception as e:
         return random_waste_fallback(f"{LOG_MODEL_CLASSIFICATION_ERROR}: {e}")
 
-def get_model_summary(model):
-    """Returns a summary of the model (useful for debugging)"""
+def get_model_summary(model: Optional[Any]) -> str:
+    """
+    Get a summary of the model (useful for debugging).
+    
+    Args:
+        model: Loaded ML model or None
+        
+    Returns:
+        str: Model summary or error message
+    """
     if model is None:
         return LOG_MODEL_NOT_LOADED
     

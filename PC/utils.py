@@ -1,57 +1,118 @@
 import time
 import random
-from config import *
+import logging
+from typing import Dict, Any
+from config import (
+    get_config,
+    WASTE_TYPES,
+    LOG_MSG_INVALID_WASTE,
+    PROCESSING_FAIL,
+    ESP_MSG_SET_TYPE,
+    LOG_PREFIX_SEND,
+    comm_manager,
+    CHANNEL_SERIAL,
+    CHANNEL_UDP,
+    ESP_MSG_MOVEMENT,
+    LOG_PREFIX_RECEIVE,
+    LOG_PREFIX_MOVEMENT,
+    LOG_MSG_MOVEMENT,
+    ESP_MSG_DISPOSAL_DONE,
+    LOG_MSG_DISPOSAL_OK,
+    ESP_MSG_ERROR,
+    ESP_MSG_ERROR_ALT,
+    LOG_MSG_ERROR_ESP32,
+    LOG_PREFIX_RANDOM
+)
 from connections import comm_manager
 
-# -------------------------
-# Funções de logging centralizadas
-# -------------------------
-def log_message(prefix, message):
-    """Função centralizada para logging"""
-    print(f"{prefix} {message}")
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, get_config("LOG_LEVEL", "INFO")),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('data/logs/system.log'),
+        logging.StreamHandler()
+    ]
+)
 
-def log_error(message):
-    """Log de erro"""
-    log_message(LOG_PREFIX_ERROR, message)
-
-def log_warning(message):
-    """Log de warning"""
-    log_message(LOG_PREFIX_WARNING, message)
-
-def log_info(message):
-    """Log de informação"""
-    log_message(LOG_PREFIX_INFO, message)
-
-def log_success(message):
-    """Log de sucesso"""
-    log_message(LOG_PREFIX_SUCCESS, message)
-
-def log_camera(message):
-    """Log relacionado à câmera"""
-    log_message(LOG_PREFIX_CAMERA, message)
-
-def log_model(message):
-    """Log relacionado ao modelo ML"""
-    log_message(LOG_PREFIX_MODEL, message)
+logger = logging.getLogger(__name__)
 
 # -------------------------
-# Funções de validação
+# Centralized Logging Functions
 # -------------------------
-def is_valid_waste_type(waste_type):
-    """Valida se o tipo de lixo é válido"""
+
+def log_message(prefix: str, message: str) -> None:
+    """Centralized function for logging with prefix"""
+    logger.info(f"{prefix} {message}")
+
+def log_error(message: str) -> None:
+    """Log error message"""
+    logger.error(message)
+
+def log_warning(message: str) -> None:
+    """Log warning message"""
+    logger.warning(message)
+
+def log_info(message: str) -> None:
+    """Log info message"""
+    logger.info(message)
+
+def log_success(message: str) -> None:
+    """Log success message"""
+    logger.info(f"✅ {message}")
+
+def log_camera(message: str) -> None:
+    """Log camera-related message"""
+    logger.info(f"📸 {message}")
+
+def log_model(message: str) -> None:
+    """Log ML model-related message"""
+    logger.info(f"🤖 {message}")
+
+# -------------------------
+# Validation Functions
+# -------------------------
+
+def is_valid_waste_type(waste_type: int) -> bool:
+    """
+    Validate if the waste type is valid.
+    
+    Args:
+        waste_type: The waste type to validate
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
     return 0 <= waste_type < len(WASTE_TYPES)
 
-def get_waste_name(waste_type):
-    """Retorna o nome do tipo de lixo"""
+def get_waste_name(waste_type: int) -> str:
+    """
+    Return the name of the waste type.
+    
+    Args:
+        waste_type: The waste type identifier
+        
+    Returns:
+        str: The name of the waste type or "UNKNOWN"
+    """
     if is_valid_waste_type(waste_type):
         return WASTE_TYPES[waste_type]
-    return "DESCONHECIDO"
+    return "UNKNOWN"
 
 # -------------------------
-# Funções de comunicação
+# Communication Functions
 # -------------------------
-def send_waste_type(waste_type):
-    """Envia o tipo de lixo para o ESP32 usando o canal detectado"""
+
+def send_waste_type(waste_type: int) -> bool:
+    """
+    Send waste type to ESP32 using the detected channel.
+    
+    Args:
+        waste_type: The waste type to send
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
     if not is_valid_waste_type(waste_type):
         log_error(f"{LOG_MSG_INVALID_WASTE}: {waste_type}")
         return PROCESSING_FAIL
@@ -60,19 +121,24 @@ def send_waste_type(waste_type):
     message = f"{ESP_MSG_SET_TYPE}{waste_type}"
     
     esp_channel = comm_manager.get_esp32_channel() or "AUTO"
-    log_message(LOG_PREFIX_SEND, f"Enviando {waste_name} via canal {esp_channel}")
+    log_message(LOG_PREFIX_SEND, f"Sending {waste_name} via channel {esp_channel}")
     
     return comm_manager.send_message(message)
 
-def process_esp32_messages():
-    """Processa mensagens recebidas do ESP32 e detecta canal"""
+def process_esp32_messages() -> bool:
+    """
+    Process messages received from ESP32 and detect channel.
+    
+    Returns:
+        bool: True if movement was detected, False otherwise
+    """
     messages = comm_manager.read_messages()
     movement_detected = False
     
     for source, message in messages:
         log_message(LOG_PREFIX_RECEIVE, f"ESP32 ({source}) -> {message}")
         
-        # Atualiza o canal ativo
+        # Update active channel
         if source == CHANNEL_SERIAL:
             comm_manager.esp32_channel = CHANNEL_SERIAL
         elif source == CHANNEL_UDP:
@@ -80,7 +146,7 @@ def process_esp32_messages():
         
         msg_upper = message.upper()
         
-        # Processa mensagens importantes
+        # Process important messages
         if ESP_MSG_MOVEMENT in msg_upper:
             movement_detected = True
             log_message(LOG_PREFIX_MOVEMENT, f"{LOG_MSG_MOVEMENT} via {source}")
@@ -93,8 +159,13 @@ def process_esp32_messages():
     
     return movement_detected
 
-def get_system_status():
-    """Obtém e exibe o status completo do sistema"""
+def get_system_status() -> Dict[str, Any]:
+    """
+    Get and display the complete system status.
+    
+    Returns:
+        Dict: Dictionary containing system status information
+    """
     esp_channel = comm_manager.get_esp32_channel()
     
     status = {
@@ -103,25 +174,33 @@ def get_system_status():
         'esp32_channel': esp_channel,
         'last_communication': (
             time.time() - comm_manager.last_communication_time
-            if comm_manager.last_communication_time > 0 else "Nunca"
+            if comm_manager.last_communication_time > 0 else "Never"
         )
     }
     
-    print(f"\n=== {LOG_MSG_SYSTEM_STATUS} ===")
+    logger.info("System status check:")
     for key, value in status.items():
         if key == "last_communication" and isinstance(value, (int, float)):
-            print(f"{key}: {value:.1f}s atrás")
+            logger.info(f"{key}: {value:.1f}s ago")
         else:
-            print(f"{key}: {value}")
-    print("===============================")
+            logger.info(f"{key}: {value}")
     
     return status
 
 # -------------------------
-# Funções de fallback
+# Fallback Functions
 # -------------------------
-def random_waste_fallback(reason):
-    """Fallback para classificação aleatória"""
+
+def random_waste_fallback(reason: str) -> int:
+    """
+    Fallback to random classification.
+    
+    Args:
+        reason: The reason for using fallback
+        
+    Returns:
+        int: Random waste type
+    """
     waste_type = random.randint(0, len(WASTE_TYPES) - 1)
     log_message(LOG_PREFIX_RANDOM, f"{reason}: {waste_type} ({get_waste_name(waste_type)})")
     return waste_type

@@ -1,49 +1,46 @@
-# ----------- GLOBAL CONFIGURATION -----------
-# Communication channels
-USE_SERIAL = False
-USE_BLUETOOTH = False
-USE_WIFI = False
-
-# Hardware pins
+# ----------- HARDWARE PINS -----------
 PIR_SENSOR_PIN = 34
 SERVO_PIN = 18
+LED_PIN = 2  # Built-in LED
 
-# Waste types and servo positions
-WASTE_TYPES = ["PLASTIC", "PAPER", "GLASS", "METAL", "ORGANIC", "SPECIAL"]
+# ----------- WASTE TYPES AND SERVO POSITIONS -----------
+WASTE_TYPES = ["PLASTIC", "PAPER", "GLASS", "METAL", "TRASH", "CARDBOARD"]
 SERVO_POSITIONS = [0, 30, 60, 90, 120, 150]
 NEUTRAL_POSITION = 90  # Servo neutral position
 
-# Network settings - STATIC IP for ESP32
+# ----------- NETWORK SETTINGS - STATIC IP FOR ESP32 -----------
 ESP_IP = "192.168.1.100"  # Fixed IP of ESP32
 ESP_SUBNET = "255.255.255.0"
 ESP_GATEWAY = "192.168.1.1"
 PC_IP_ADDRESS = "192.168.1.50"  # PC IP
 UDP_PORT = 12345  # Communication port
 
-# Wi-Fi credentials
+# ----------- WI-FI CREDENTIALS -----------
 WIFI_SSID = "YOUR_NETWORK_NAME"
 WIFI_PASSWORD = "YOUR_PASSWORD"
 
-# Timeouts and delays
+# ----------- TIMEOUTS AND DELAYS (ms) -----------
 MOVEMENT_TIMEOUT_MS = 10000       # 10 seconds
-SERVO_MOVEMENT_DELAY = 0.5        # 500ms
-WASTE_PROCESSING_DELAY = 2        # 2 seconds
+SERVO_MOVEMENT_DELAY = 500        # 500ms
+WASTE_PROCESSING_DELAY = 2000     # 2 seconds
 SERIAL_READ_TIMEOUT = 100         # 100ms for serial check
 STATUS_REPORT_INTERVAL = 30000    # 30 seconds
 COMMUNICATION_TIMEOUT_MS = 5000   # 5 seconds for communication timeout
 WIFI_CONNECTION_TIMEOUT_MS = 15000  # 15 seconds for Wi-Fi connection
+DEBOUNCE_DELAY_MS = 200           # 200ms for button/sensor debouncing
 
-# System states
+# ----------- SYSTEM STATES -----------
 NO_TYPE_SELECTED = -1
 SYSTEM_READY = "READY"
 SYSTEM_ERROR = "ERROR"
+SYSTEM_BUSY = "BUSY"
 
-# Communication channels
+# ----------- COMMUNICATION CHANNELS -----------
 CHANNEL_SERIAL = "SERIAL"
 CHANNEL_UDP = "UDP"
 CHANNEL_NONE = "NONE"
 
-# System commands
+# ----------- SYSTEM COMMANDS -----------
 CMD_SET_TYPE = "SET_TYPE:"
 CMD_TYPE = "TYPE:"
 CMD_STATUS = "STATUS"
@@ -53,8 +50,9 @@ CMD_SHUTDOWN = "SHUTDOWN"
 CMD_RESTART = "RESTART"
 CMD_RESET = "RESET"
 CMD_CANCEL = "CANCEL"
+CMD_CALIBRATE = "CALIBRATE"
 
-# System messages
+# ----------- SYSTEM MESSAGES -----------
 MSG_MOVEMENT_DETECTED = "MOVEMENT_DETECTED"
 MSG_TYPE_SELECTED = "TYPE_SELECTED"
 MSG_TYPE_DEFINED = "TYPE_DEFINED"
@@ -72,23 +70,47 @@ MSG_SERVO_MOVING = "SERVO_MOVING"
 MSG_SERVO_POSITIONED = "SERVO_POSITIONED"
 MSG_WAITING_DISPOSAL = "WAITING_FOR_DISPOSAL"
 MSG_TIMEOUT = "TIMEOUT"
+MSG_WIFI_CONNECTED = "WIFI_CONNECTED"
+MSG_WIFI_FAILED = "WIFI_FAILED"
 
-# Message prefixes
+# ----------- MESSAGE PREFIXES -----------
 PREFIX_CANAL = "CHANNEL:"
 PREFIX_TIPO = "TYPE:"
 PREFIX_ANGULO = "ANGLE:"
 PREFIX_NOME = "NAME:"
+PREFIX_IP = "IP:"
 
-# Servo duty cycle values
+# ----------- SERVO DUTY CYCLE VALUES -----------
 SERVO_DUTY_MIN = 40
 SERVO_DUTY_MAX = 155
 SERVO_DUTY_RANGE = SERVO_DUTY_MAX - SERVO_DUTY_MIN
 SERVO_FREQUENCY = 50
 
-# Buffer sizes
+# ----------- BUFFER SIZES -----------
 UDP_BUFFER_SIZE = 1024
 SERIAL_BUFFER_SIZE = 128
 
-# Processing states
+# ----------- PROCESSING STATES -----------
 PROCESSING_ACTIVE = True
 PROCESSING_INACTIVE = False
+
+# ----------- ERROR CODES -----------
+ERROR_SERVO_FAILURE = 1
+ERROR_SENSOR_FAILURE = 2
+ERROR_COMMUNICATION_FAILURE = 3
+ERROR_WIFI_FAILURE = 4
+ERROR_INVALID_COMMAND = 5
+
+# ----------- DEBUG SETTINGS -----------
+DEBUG_MODE = True
+LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+def log_message(level: str, message: str) -> None:
+    """
+    Log message with appropriate level.
+    MicroPython-friendly logging.
+    """
+    if DEBUG_MODE:
+        levels = ["DEBUG", "INFO", "WARNING", "ERROR"]
+        if level in levels and levels.index(level) >= levels.index(LOG_LEVEL):
+            print(f"[{level}] {message}")

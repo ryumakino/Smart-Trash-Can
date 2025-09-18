@@ -1,0 +1,10 @@
+# ===========================
+# PC (Python 3) Dependencies
+# ===========================
+numpy             # Array manipulation library
+opencv-python     # OpenCV for image capture and processing
+tensorflow        # Machine learning model loading and inference
+requests          # HTTP requests for Wi-Fi/HTTP control
+
+# Standard Python modules used (no need to install):
+# time, os, platform, random, logging

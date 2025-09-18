@@ -1,10 +1,16 @@
 import cv2
 import numpy as np
-from config import *
-from utils import log_error, log_info, log_success
+from typing import Optional
+from config import CAMERA_ID, CAPTURE_WIDTH, CAPTURE_HEIGHT, CAMERA_WARMUP_ATTEMPTS, SAVE_IMAGES, IMAGE_SAVE_PATH, IMAGE_FORMAT, IMAGE_WIDTH, IMAGE_HEIGHT, BLUR_KERNEL, DISPLAY_TIME_MS
+from utils import log_error, log_success
 
-def capture_image():
-    """Captures an image from the webcam and saves it locally"""
+def capture_image() -> Optional[np.ndarray]:
+    """
+    Capture an image from the webcam and save it locally.
+    
+    Returns:
+        Optional[np.ndarray]: Captured image frame or None if failed
+    """
     cap = cv2.VideoCapture(CAMERA_ID)
     try:
         if not cap.isOpened():
@@ -43,12 +49,21 @@ def capture_image():
     finally:
         cap.release()
 
-def preprocess_image(frame):
+def preprocess_image(frame: np.ndarray) -> Optional[np.ndarray]:
     """
-    Preprocesses the image for deep learning model input:
+    Preprocess the image for deep learning model input.
+    
+    Steps:
     - Resize (common for CNN models)
     - Convert BGR → RGB
     - Normalize values (0–1)
+    - Apply light smoothing to reduce noise
+    
+    Args:
+        frame: Input image frame
+        
+    Returns:
+        Optional[np.ndarray]: Preprocessed image or None if failed
     """
     if frame is None:
         return None
@@ -72,8 +87,14 @@ def preprocess_image(frame):
         log_error(f"ERROR in image preprocessing: {e}")
         return None
 
-def display_image(frame, title="Captured Image"):
-    """Displays the image in a window (useful for debugging)"""
+def display_image(frame: np.ndarray, title: str = "Captured Image") -> None:
+    """
+    Display the image in a window (useful for debugging).
+    
+    Args:
+        frame: Image to display
+        title: Window title
+    """
     try:
         # Convert back to BGR for display
         display_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
