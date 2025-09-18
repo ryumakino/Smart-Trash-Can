@@ -1,0 +1,22 @@
+# MicroPython ESP32 Dependencies
+# Install using: upip install <package> or mip install <package>
+
+# Note: Most MicroPython packages are installed via mip or upip
+# Common utilities that might be needed:
+
+# For HTTP requests (if needed):
+# urequests
+
+# For JSON handling (built-in but enhanced):
+# ujson
+
+# For advanced networking:
+# umqtt.simple (for MQTT)
+# umqtt.robust
+
+# For sensor libraries (if adding more sensors):
+# bme280 (for temperature/humidity/pressure)
+# ds18x20 (for DS18B20 temperature sensor)
+
+# Install with: mip install github:micropython/micropython-lib/urequests
+# or: import mip; mip.install("urequests")
