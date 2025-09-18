@@ -51,23 +51,24 @@ The system includes:
 ---
 
 ## Directory Structure
+```text
 smart_trash_can/
 │
-├─ ESP32/
-│   ├─ communication.py     # Handles Serial/UDP communication
-│   ├─ config.py            # System constants and hardware configuration
-│   ├─ main.py              # Main loop and system logic for ESP32
-│   ├─ sensor.py            # PIR motion sensor handling
-│   ├─ servo_control.py     # Servo initialization and movement functions
-│   └─ waste_disposal.py    # Waste processing logic
+├── ESP32/
+│   ├── communication.py      # Handles Serial/UDP communication
+│   ├── config.py             # System constants and hardware configuration
+│   ├── main.py               # Main loop and system logic for ESP32
+│   ├── sensor.py             # PIR motion sensor handling
+│   ├── servo_control.py      # Servo initialization and movement functions
+│   └── waste_disposal.py     # Waste processing logic
 │
-├─ PC/
-│   ├─ camera.py            # Image capture and preprocessing
-│   ├─ config.py            # System constants and configuration
-│   ├─ connections.py       # Handles Serial/UDP communication with ESP32
-│   ├─ main.py              # Main loop and system logic for PC
-│   ├─ ml_model.py          # ML model loading and classification
-│   └─ utils.py             # Logging, helper functions, and fallback handling
+└── PC/
+    ├── camera.py             # Image capture and preprocessing
+    ├── config.py             # System constants and configuration
+    ├── connections.py        # Handles Serial/UDP communication with ESP32
+    ├── main.py               # Main loop and system logic for PC
+    ├── ml_model.py           # ML model loading and classification
+    └── utils.py              # Logging, helper functions, and fallback handling
 
 ---
 
