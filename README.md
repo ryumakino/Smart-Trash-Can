@@ -69,7 +69,8 @@ smart_trash_can/
     ├── main.py               # Main loop and system logic for PC
     ├── ml_model.py           # ML model loading and classification
     └── utils.py              # Logging, helper functions, and fallback handling
-```text
+```
+
 ---
 
 ## Features
