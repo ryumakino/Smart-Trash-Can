@@ -1,34 +1,23 @@
-from config import (
-    WASTE_TYPES,
-    LOG_MSG_INVALID_WASTE,
-    ESP_MSG_SET_TYPE,
-    LOG_PREFIX_SEND,
-    ESP_HOSTNAME
-)
-
 from datetime import datetime
 
-def log_message(prefix, message):
-    """Log a message with timestamp and prefix"""
+def log_message(prefix: str, message: str):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] [{prefix}] {message}")
 
-def log_info(message):
-    """Log an info message"""
+def log_info(message: str):
     log_message("INFO", message)
 
-def log_error(message):
-    """Log an error message"""
+def log_error(message: str):
     log_message("ERROR", message)
 
-def log_warning(message):
-    """Log a warning message"""
+def log_warning(message: str):
     log_message("WARNING", message)
 
-def log_success(message):
-    """Log a success message"""
+def log_success(message: str):
     log_message("SUCCESS", message)
 
-def log_debug(message):
-    """Log a debug message"""
+def log_debug(message: str):
     log_message("DEBUG", message)
+
+def log_camera(message: str):
+    log_message("CAMERA", message)

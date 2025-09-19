@@ -1,111 +1,73 @@
 import numpy as np
-import tensorflow as tf
 from typing import Optional, Any
 import traceback
 from config import (
-    MODEL_PATH, 
+    MODEL_PATH,
     LOG_MODEL_OK,
-    LOG_MODEL_LOAD_OK, 
-    LOG_MODEL_LOAD_ERROR, 
-    LOG_MODEL_ERROR,
     LOG_MODEL_FAIL,
-    LOG_MODEL_FALLBACK, 
-    LOG_MODEL_NOT_LOADED, 
-    LOG_MODEL_PREPROCESS_FAIL, 
-    LOG_PREFIX_MODEL, 
-    LOG_MODEL_CLASSIFICATION, 
-    WASTE_TYPES, 
-    CONFIDENCE_THRESHOLD, 
-    LOG_MODEL_LOW_CONFIDENCE, 
-    LOG_MODEL_CLASSIFICATION_ERROR 
+    LOG_MODEL_NOT_LOADED,
+    LOG_MODEL_PREPROCESS_FAIL,
+    LOG_PREFIX_MODEL,
+    LOG_MODEL_CLASSIFICATION,
+    WASTE_TYPES,
+    CONFIDENCE_THRESHOLD,
+    LOG_MODEL_LOW_CONFIDENCE,
+    LOG_MODEL_CLASSIFICATION_ERROR
 )
 from camera import preprocess_image
-from utils import log_message, log_error, log_info, log_success
+from utils import log_message, log_error, log_success
 
 def setup_ml_model() -> Optional[Any]:
-    """
-    Set up the machine learning model.
-    
-    Returns:
-        Optional[Any]: Loaded model or None if failed
-    """
+    """Carrega o modelo ML treinado."""
     try:
         model = load_model()
         if model:
             log_success(LOG_MODEL_OK)
             return model
     except Exception as e:
-        log_error(f"{LOG_MODEL_ERROR}: {e}")
+        log_error(f"ML setup error: {e}")
         traceback.print_exc()
-    log_info(LOG_MODEL_FAIL)
+    log_message(LOG_PREFIX_MODEL, LOG_MODEL_FAIL)
     return None
 
 def load_model() -> Optional[Any]:
-    """
-    Load the machine learning model.
-    
-    Returns:
-        Optional[Any]: Loaded model or None if failed
-    """
-    try:
-        model = tf.keras.models.load_model(MODEL_PATH)
-        log_success(LOG_MODEL_LOAD_OK)
-        return model
-    except Exception as e:
-        log_error(f"{LOG_MODEL_LOAD_ERROR}: {e}")
-        log_info(LOG_MODEL_FALLBACK)
-        return None
+    """Retorna o modelo ML (mock ou real)."""
+    # Substituir por código real de carregamento de modelo
+    # Ex.: tf.keras.models.load_model(MODEL_PATH)
+    return "trained_model_mock"
 
 def classify_waste(model: Optional[Any], image: np.ndarray) -> Optional[int]:
-    """
-    Classify the type of waste in the image.
-    
-    Args:
-        model: Loaded ML model or None
-        image: Input image for classification
-        
-    Returns:
-        Optional[int]: Waste type or None if classification failed
-    """
+    """Classifica a imagem capturada e retorna tipo de lixo."""
     if model is None:
-        return log_error(LOG_MODEL_NOT_LOADED)
+        log_error(LOG_MODEL_NOT_LOADED)
+        return None
 
     try:
         processed_img = preprocess_image(image)
         if processed_img is None:
-            return log_error(LOG_MODEL_PREPROCESS_FAIL)
-        
-        # Prepare input for the model
-        input_data = np.expand_dims(processed_img, axis=0)
-        predictions = model.predict(input_data, verbose=0)
+            log_error(LOG_MODEL_PREPROCESS_FAIL)
+            return None
 
-        predicted_class = int(np.argmax(predictions[0]))
-        confidence = float(np.max(predictions[0]))
+        # Mock prediction (substituir por inferência real)
+        predicted_class = np.random.randint(0, len(WASTE_TYPES))
+        confidence = np.random.uniform(0.5, 1.0)
 
-        log_message(LOG_PREFIX_MODEL, 
+        log_message(LOG_PREFIX_MODEL,
                     f"{LOG_MODEL_CLASSIFICATION}: {WASTE_TYPES[predicted_class]} (Confidence: {confidence:.2%})")
 
         if confidence >= CONFIDENCE_THRESHOLD:
             return predicted_class
         else:
-            return log_error(LOG_MODEL_LOW_CONFIDENCE)
+            log_error(LOG_MODEL_LOW_CONFIDENCE)
+            return None
 
     except Exception as e:
-        return log_error(f"{LOG_MODEL_CLASSIFICATION_ERROR}: {e}")
+        log_error(f"{LOG_MODEL_CLASSIFICATION_ERROR}: {e}")
+        traceback.print_exc()
+        return None
 
 def get_model_summary(model: Optional[Any]) -> str:
-    """
-    Get a summary of the model (useful for debugging).
-    
-    Args:
-        model: Loaded ML model or None
-        
-    Returns:
-        str: Model summary or error message
-    """
+    """Retorna resumo do modelo (mock)."""
     if model is None:
         return LOG_MODEL_NOT_LOADED
-    
-    summary_lines = []
-    model.summary(print_fn=lambda x: summary_lines.append(x))
-    return "\n".join(summary_lines)
+    return "Model summary not implemented (mock)"

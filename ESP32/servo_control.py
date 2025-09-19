@@ -89,4 +89,4 @@ class ServoController:
         }
 
 # Instância global
-servo_controller = ServoController()
+servo_controller = ServoController().initialize()

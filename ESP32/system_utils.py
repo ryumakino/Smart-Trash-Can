@@ -57,3 +57,27 @@ def get_network_info() -> dict:
         'hostname': 'esp32',
         'connected': False
     }
+
+from time_utils import get_uptime_ms
+from config import STATUS_UPDATE_INTERVAL_MS
+from system_utils import log_component_status
+
+def print_system_status(sensor, system_ready, servo_controller):
+    try:
+        log_message("INFO", "="*40)
+        log_message("INFO", "SYSTEM STATUS")
+        log_component_status("Uptime", f"{get_uptime_ms()} ms")
+        log_component_status("System ready", system_ready)
+        log_component_status("IR movement detected", sensor.is_detected() if sensor else False)
+        log_component_status("Servo angle", servo_controller.get_status()['current_angle'])
+        log_message("INFO", "="*40)
+    except Exception as e:
+        log_message("ERROR", f"Status print failed: {e}")
+
+def display_status_if_needed(last_display_time, sensor, system_ready, servo_controller):
+    from utime import ticks_ms, ticks_diff
+    current_time = ticks_ms()
+    if ticks_diff(current_time, last_display_time) > STATUS_UPDATE_INTERVAL_MS:
+        print_system_status(sensor, system_ready, servo_controller)
+        return current_time
+    return last_display_time

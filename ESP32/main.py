@@ -1,346 +1,121 @@
-import time
+# main.py
+import utime as time
+import _thread
+
 from config import (
-    NO_TYPE_SELECTED,
-    NEUTRAL_POSITION,
-    MSG_SYSTEM_STARTED,
-    SYSTEM_READY,
-    MOVEMENT_TIMEOUT_MS,
-    MSG_TIMEOUT,
-    MSG_MOVEMENT_DETECTED,
+    NO_TYPE_SELECTED, NEUTRAL_POSITION, MSG_SYSTEM_STARTED, SYSTEM_READY,
+    MOVEMENT_TIMEOUT_MS, MSG_TIMEOUT, MSG_MOVEMENT_DETECTED,
+    STATUS_UPDATE_INTERVAL_MS, PIR_SENSOR_PIN
 )
 from hardware_utils import log_message
 from io_utils import blink_led
 from time_utils import get_uptime_ms
-
-# Importação direta dos módulos (SEM WiFi inicialmente)
 from serial_comm import serial_comm
 from message_processor import message_processor
+from servo_control import servo_controller
+from sensor import sensor_controller  # sensor IR completo com Serial + UDP
+from udp_comm import udp_comm
 from disposal_control import initialize_disposal_control
 from disposal_process import initialize_disposal_process
 from disposal_status import initialize_disposal_status
-from sensor import pir_sensor
-from servo_control import servo_controller
+from comm_manager import CommManager
 
-# Variáveis globais para comunicação (serão inicializadas depois)
-wifi_manager = None
-udp_comm = None
+# Sistema
 components_initialized = False
+system_ready = False
+disposal_system = None
 
-# Inicializa comunicação
-def initialize_communication():
-    """Initialize communication modules safely with delayed WiFi"""
-    global wifi_manager, udp_comm
-    log_message("INFO", "Initializing communication systems...")
+# Timer de software para timeout do movimento
+movement_timeout_thread = None
+MOVEMENT_CALLBACK_DEBOUNCE_MS = 500
 
-    # Serial já inicializada
-    if serial_comm.initialized:
-        log_message("INFO", "Serial communication ready")
-    else:
-        log_message("WARNING", "Serial communication not initialized")
-
-    # Aguarda estabilização
-    import time
-    time.sleep_ms(2000)
-
-    # Inicializa WiFi apenas se configurado
-    from config import WIFI_SSID, WIFI_PASSWORD
-    if WIFI_SSID and WIFI_PASSWORD and WIFI_SSID != "YOUR_NETWORK_NAME":
-        from wifi_manager import wifi_manager as wm
-        from udp_comm import udp_comm as uc
-        wifi_manager = wm
-        udp_comm = uc
-        log_message("INFO", "Attempting WiFi initialization...")
-        try:
-            if wifi_manager.initialize():
-                log_message("INFO", "WiFi connected")
-                udp_comm.start_discovery_service()
-            else:
-                log_message("WARNING", "WiFi failed - continuing without network")
-        except Exception as e:
-            log_message("ERROR", f"WiFi initialization failed: {e}")
-    else:
-        log_message("WARNING", "WiFi not configured - skipping")
-
-    return True
-
-# ⭐⭐ FUNÇÃO SEGURA DE ENVIO DE MENSAGENS
-def send_message(message: str):
-    """Send message through available channels"""
+def print_system_status():
+    """Exibe status completo do sistema."""
     try:
-        # ⭐⭐ Tenta Serial primeiro (sempre disponível)
-        if serial_comm and hasattr(serial_comm, 'send_message'):
-            if serial_comm.send_message(message):
-                return True
-        
-        # ⭐⭐ Tenta UDP apenas se WiFi estiver disponível
-        if (wifi_manager and udp_comm and 
-            hasattr(wifi_manager, 'is_connected') and 
-            wifi_manager.is_connected() and
-            hasattr(udp_comm, 'send_message')):
-            
-            return udp_comm.send_message(message)
-            
-        return False
-        
-    except Exception as e:
-        log_message("ERROR", f"Send message failed: {e}")
-        return False
-
-# ⭐⭐ FUNÇÃO SEGURA DE LEITURA DE MENSAGENS
-def read_messages():
-    """Read messages from all channels"""
-    try:
-        message_received = False
-        
-        # ⭐⭐ Lê do Serial
-        if serial_comm and hasattr(serial_comm, 'read_data'):
-            data = serial_comm.read_data()
-            if data:
-                message_processor.process_received_data(data, "SERIAL")
-                message_received = True
-        
-        # ⭐⭐ Lê do UDP apenas se WiFi disponível
-        if (wifi_manager and udp_comm and 
-            hasattr(wifi_manager, 'is_connected') and 
-            wifi_manager.is_connected() and
-            hasattr(udp_comm, 'read_data')):
-            
-            data = udp_comm.read_data()
-            if data:
-                message_processor.process_received_data(data, "UDP")
-                message_received = True
-                
-        return message_received
-        
-    except Exception as e:
-        log_message("ERROR", f"Read messages failed: {e}")
-        return False
-
-# ⭐⭐ INICIALIZAÇÃO DO SISTEMA DE DISPOSAL
-try:
-    disposal_control = initialize_disposal_control(servo_controller, message_processor)
-    disposal_status = initialize_disposal_status(message_processor, disposal_control)
-    disposal_process = initialize_disposal_process(servo_controller, message_processor, disposal_control)
-    
-    disposal_system = {
-        'control': disposal_control,
-        'status': disposal_status,
-        'process': disposal_process
-    }
-    log_message("INFO", "Disposal system initialized")
-except Exception as e:
-    log_message("ERROR", f"Disposal system initialization failed: {e}")
-    # ⭐⭐ Sistema de fallback
-    disposal_system = None
-
-# Adicione variável global para controle de callback
-last_movement_callback = 0
-MOVEMENT_CALLBACK_DEBOUNCE_MS = 5000  # 5 segundos
-
-# ⭐⭐ CONFIGURAÇÃO DO CALLBACK DO SENSOR
-def movement_detected_callback():
-    global last_movement_callback
-    try:
-        current_time = time.ticks_ms()
-        
-        # Evita disparos múltiplos em sequência
-        if time.ticks_diff(current_time, last_movement_callback) > MOVEMENT_CALLBACK_DEBOUNCE_MS:
-            send_message(f"{MSG_MOVEMENT_DETECTED}:")
-            log_message("INFO", "Movement detected")
-            last_movement_callback = current_time
-        else:
-            log_message("DEBUG", "Movement ignored (debounce active)")
-    except Exception as e:
-        log_message("ERROR", f"Movement callback failed: {e}")
-
-# ⭐⭐ INICIALIZAÇÃO DE COMPONENTES DE HARDWARE
-def initialize_servo() -> bool:
-    """Initialize servo controller"""
-    try:
-        return servo_controller.initialize()
-    except Exception as e:
-        log_message("ERROR", f"Servo initialization failed: {e}")
-        return False
-
-def initialize_sensor() -> bool:
-    """Initialize PIR sensor"""
-    try:
-        return pir_sensor.initialize(movement_detected_callback)
-    except Exception as e:
-        log_message("ERROR", f"Sensor initialization failed: {e}")
-        return False
-
-def initialize_system() -> bool:
-    """
-    Initialize all system components safely
-    """
-    global system_ready, components_initialized
-    
-    # ⭐⭐ Evita inicialização dupla
-    if components_initialized:
-        log_message("INFO", "System already initialized")
-        return True
-        
-    log_message("INFO", "=== SMART TRASH CAN STARTING ===")
-    blink_led(2, 200)
-    
-    # ⭐⭐ Inicializa hardware crítico primeiro
-    servo_initialized = initialize_servo()
-    sensor_initialized = initialize_sensor()
-    
-    # ⭐⭐ Inicializa comunicação (pode falhar sem problemas)
-    communication_initialized = initialize_communication()
-    
-    # ⭐⭐ Sistema está pronto se hardware crítico funcionar
-    if servo_initialized and sensor_initialized:
-        log_message("INFO", "System initialized successfully!")
-        system_ready = True
-        components_initialized = True  # ⭐⭐ Marca como inicializado
-        blink_led(5, 100)  # Success pattern
-        return True
-    else:
-        log_message("ERROR", "Critical hardware initialization failed!")
-        blink_led(10, 50)  # Error pattern
-        return False
-
-# ⭐⭐ STATUS DO SISTEMA
-def print_system_status() -> None:
-    """Display the full system status."""
-    try:
-        log_message("INFO", "="*50)
-        log_message("INFO", "        SYSTEM STATUS")
-        log_message("INFO", "="*50)
-        
+        log_message("INFO", "="*40)
+        log_message("INFO", "SYSTEM STATUS")
         log_message("INFO", f"Uptime: {get_uptime_ms()} ms")
         log_message("INFO", f"System ready: {system_ready}")
-        
-        # Status do sensor
-        try:
-            movement_status = pir_sensor.get_status()
-            log_message("INFO", f"Sensor: {'READY' if movement_status else 'ERROR'}")
-        except:
-            log_message("INFO", "Sensor: ERROR")
-        
-        # Status do servo
-        try:
-            servo_status = servo_controller.get_status()
-            log_message("INFO", f"Servo: {'READY' if servo_status['initialized'] else 'ERROR'}")
-        except:
-            log_message("INFO", "Servo: ERROR")
-        
-        # Status WiFi
-        try:
-            if wifi_manager and hasattr(wifi_manager, 'is_connected'):
-                log_message("INFO", f"WiFi: {'CONNECTED' if wifi_manager.is_connected() else 'DISCONNECTED'}")
-            else:
-                log_message("INFO", "WiFi: NOT INITIALIZED")
-        except:
-            log_message("INFO", "WiFi: ERROR")
-        
-        log_message("INFO", "="*50)
-        
+        status = sensor_controller.is_detected()
+        log_message("INFO", f"IR movement detected: {status}")
+        status = servo_controller.get_status()
+        log_message("INFO", f"Servo angle: {status['current_angle']}")
+        log_message("INFO", "="*40)
     except Exception as e:
-        log_message("ERROR", f"Status display failed: {e}")
+        log_message("ERROR", f"Status print failed: {e}")
 
-# ⭐⭐ VARIÁVEIS GLOBAIS DO SISTEMA
-system_start_time = time.ticks_ms()
-last_status_report = 0
-system_ready = False
+def main():
+    # --- Inicialização do sistema ---
+    log_message("INFO", "=== SMART TRASH CAN STARTING ===")
+    blink_led(2, 200)
 
-# ⭐⭐ FUNÇÃO PRINCIPAL
-def main() -> None:
-    """Main function of the smart trash can."""
-    global last_status_report, system_ready
-    
-    log_message("INFO", "==========================================")
-    log_message("INFO", "       ESP32 SMART TRASH CAN SYSTEM")
-    log_message("INFO", "==========================================")
-    
-    # Initialize system
-    if not initialize_system():
-        log_message("ERROR", "Failed to initialize system. Entering recovery mode.")
-        
-        # ⭐⭐ Modo de recuperação: apenas mantém servo neutro
-        try:
-            servo_controller.move_to_angle(NEUTRAL_POSITION)
-            log_message("INFO", "Servo set to neutral position")
-        except Exception as e:
-            log_message("ERROR", f"Recovery mode failed: {e}")
-        
+    comm = CommManager()
+    if comm.detect_channel():
+        log_message("INFO", f"Active channel: {comm.get_channel()}")
+    else:
+        log_message("INFO", "No channel detected!")
+        raise SystemExit
+
+    if sensor_controller and servo_controller:
+        blink_led(5, 100)
+        log_message("INFO", "System initialized successfully!")
+        comm.send_message(f"{MSG_SYSTEM_STARTED}:{SYSTEM_READY}")
+    else:
+        blink_led(10, 50)
+        log_message("ERROR", "System failed to initialize")
         return
     
-    # Send startup message
-    send_message(f"{MSG_SYSTEM_STARTED}:{SYSTEM_READY}")
-    log_message("INFO", "Smart Trash Can ready for operation!")
-    print_system_status()
+    def movement_callback(detected: bool):
+        if detected:
+            log_message("INFO", "Movement detected by callback!")
+            comm.send_message("IR:DETECTED")
+        else:
+            log_message("INFO", "Area is free")
+            comm.send_message("IR:CLEARED")
+        
+    # --- Inicia monitoramento do sensor em thread separada ---
+    def sensor_task():
+        sensor_controller.set_callback(lambda detected: movement_callback(detected))
+        sensor_controller.monitor()
 
-    # ⭐⭐ MAIN LOOP SEGURO
-    log_message("INFO", "Entering main loop...")
-    blink_led(3, 100)
-    
-    last_status_display = time.ticks_ms()
+    _thread.start_new_thread(sensor_task, ())
 
     while True:
         try:
-            current_time = time.ticks_ms()
-            
-            # ⭐⭐ Lê mensagens periodicamente
-            read_messages()
-            
-            # ⭐⭐ Mostra status a cada 30 segundos
-            if time.ticks_diff(current_time, last_status_display) > 30000:
-                print_system_status()
-                last_status_display = current_time
-            
-            # ⭐⭐ Processa disposição se condições forem atendidas
-            try:
-                movement_status = pir_sensor.get_status()
-                disposal_status = disposal_system['status'].get_status() if disposal_system else {'is_processing': False}
+            # Leitura de mensagens
+            msgs = comm.read_messages()
+            for ch, msg in msgs:
+                print(f"[{ch}] {msg}")
                 
-                if (movement_status['movement_detected'] and 
-                    not disposal_status['is_processing'] and 
-                    message_processor.selected_waste_type != NO_TYPE_SELECTED):
-                    
-                    log_message("INFO", "Starting disposal process")
-                    disposal_system['process'].process_waste_disposal(
-                        message_processor.selected_waste_type
-                    )
-
-                    # 🔹 Reseta o PIR após iniciar o processo
-                    pir_sensor.reset_detection()
+                # Responde a descoberta UDP
+                if "DISCOVER" in msg:
+                    comm.send_message("HERE")
                 
-                # ⭐⭐ Verifica timeout de movimento
-                if (movement_status['movement_detected'] and 
-                    time.ticks_diff(current_time, movement_status['last_detection_time']) > MOVEMENT_TIMEOUT_MS and
-                    not disposal_status['is_processing']):
-                    
-                    log_message("WARNING", "Movement timeout - no selection made")
-                    servo_controller.move_to_angle(NEUTRAL_POSITION)
-                    send_message(f"{MSG_TIMEOUT}:NO_SELECTION")
-                    pir_sensor.reset_detection()
+                # Responde a PING
+                elif msg == "PING":
+                    comm.send_message("PONG")
+                
+                # Handshake
+                elif msg == "ESP32_READY":
+                    comm.send_message("PC_ACK")
+                
+                # Comandos de tipo de lixo
+                elif "SET_TYPE:" in msg:
+                    try:
+                        waste_type = int(msg.split(":")[1])
+                        # Processar tipo de lixo
+                        log_message("INFO", f"Waste type received: {waste_type}")
+                    except:
+                        pass
 
-                    # 🔹 Reseta o PIR após timeout
-                    pir_sensor.reset_detection()
-                    
-            except Exception as e:
-                log_message("ERROR", f"Processing error: {e}")
-            
-            # ⭐⭐ Pequena pausa para evitar sobrecarga
-            time.sleep_ms(100)
-            
+            # Envio periódico de status
+            comm.send_message("STATUS:OK")
+            time.sleep_ms(500)
+
         except Exception as e:
-            log_message("CRITICAL", f"Critical error in main loop: {e}")
-            log_message("INFO", "Attempting system recovery...")
-            
-            # ⭐⭐ Tentativa de recuperação
-            try:
-                servo_controller.move_to_angle(NEUTRAL_POSITION)
-                pir_sensor.reset_detection()
-                time.sleep_ms(2000)
-            except:
-                pass
-            
-            system_ready = False
+            log_message("CRITICAL", f"Critical error: {e}")
+            time.sleep_ms(2000)
 
-# ⭐⭐ EXECUÇÃO PRINCIPAL
-main()
+# Executa main
+if __name__ == "__main__":
+    main()

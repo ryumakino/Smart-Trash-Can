@@ -27,9 +27,8 @@ class SerialComm:
     def connect(self):
         """Connect to the serial port"""
         try:
-            if not self.port_name:
-                if not self.is_available():
-                    return False
+            if not self.port_name and not self.is_available():
+                return False
                     
             self.conn = serial.Serial(
                 self.port_name or SERIAL_PORT, 

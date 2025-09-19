@@ -1,80 +1,56 @@
-from machine import Pin, Timer
-import time
-from config import PIR_SENSOR_PIN, MOVEMENT_TIMEOUT_MS, MSG_MOVEMENT_DETECTED, PREFIX_CANAL, MSG_TIMEOUT, DEBOUNCE_DELAY_MS
+import machine
+import utime as time
 from hardware_utils import log_message
+from udp_comm import udp_comm       # sua classe UDPComm
+from serial_comm import serial_comm # sua classe SerialComm
+from config import PIR_SENSOR_PIN
 
-class PIRSensor:
+class IRSensor:
     def __init__(self):
-        self.pir_sensor = Pin(PIR_SENSOR_PIN, Pin.IN)
-        self.movement_timer = Timer(1)
-        self.last_movement_time = 0
-        self.movement_detected = False
-        self.callback_handler = None
-        self.first_trigger_ignored = False  # <- flag nova
+        self.sensor = machine.Pin(PIR_SENSOR_PIN, machine.Pin.IN)
+        self.last_state = 0
+        self.interval_ms = 500
+        self.udp = udp_comm
+        self.serial = serial_comm
+        self._callback = None  # callback para movimento
+        self.detected = False  # ← Adicione este atributo para rastrear o estado
 
-    def pir_callback(self, pin) -> None:
-        """PIR sensor interrupt callback function."""
-        try:
-            if pin.value() == 1:
-                if not self.first_trigger_ignored:
-                    log_message("DEBUG", "Ignoring first PIR trigger (warm-up)")
-                    self.first_trigger_ignored = True
-                    return
-                
-                self.movement_detected = True
-                self.last_movement_time = time.ticks_ms()
-                
-                if self.callback_handler:
-                    self.callback_handler()
-        except Exception as e:
-            log_message("ERROR", f"PIR callback error: {e}")
+        # Inicializa UDP se fornecido
+        if self.udp and not self.udp.initialized:
+            self.udp.initialize()
+            self.udp.discover_peer()
 
-    def initialize(self, callback_handler=None) -> bool:
-        """Initialize PIR sensor with interrupt."""
-        try:
-            self.callback_handler = callback_handler
-            
-            # CORREÇÃO: usar sleep_ms em vez de sleep
-            time.sleep_ms(2000)  # 2 segundos para estabilização
-            
-            self.pir_sensor.irq(trigger=Pin.IRQ_RISING, handler=self.pir_callback)
-            
-            # Start timeout timer
-            self.movement_timer.init(period=1000, mode=Timer.PERIODIC, callback=self.check_movement_timeout)
-            
-            log_message("INFO", "PIR sensor initialized with interrupt")
-            return True
-        except Exception as e:
-            log_message("ERROR", f"PIR sensor initialization failed: {e}")
-            return False
+    def is_detected(self):
+        """Retorna True se movimento está sendo detectado no momento"""
+        return self.sensor.value()
 
-    def detect_movement(self) -> bool:
-        """Detect movement via PIR sensor."""
-        return self.movement_detected
+    def send_message(self, message: str):
+        if self.serial and self.serial.initialized:
+            self.serial.send(message)
+        if self.udp and self.udp.peer_addr:
+            self.udp.send(message)
+        log_message("INFO", f"Sensor -> {message}")
 
-    def check_movement_timeout(self, timer=None) -> None:
-        """Check for movement timeout."""
-        current_time = time.ticks_ms()
-        if (self.movement_detected and 
-            time.ticks_diff(current_time, self.last_movement_time) > MOVEMENT_TIMEOUT_MS):
-            log_message("WARNING", "Movement timeout - no selection made")
-            self.reset_detection()
+    def set_callback(self, callback):
+        """Define uma função que será chamada quando movimento for detectado."""
+        self._callback = callback
 
-    def reset_detection(self) -> None:
-        """Reset movement detection flags."""
-        self.movement_detected = False
-        log_message("DEBUG", "Movement detection reset")
+    def monitor(self):
+        log_message("INFO", "Starting IR sensor monitoring...")
+        while True:
+            state = self.read()
+            if state != self.last_state:
+                if state == 1:
+                    self.detected = True  # ← Atualiza o estado
+                    self.send_message("Movement detected!")
+                    if self._callback:
+                        self._callback(True)
+                else:
+                    self.detected = False  # ← Atualiza o estado
+                    self.send_message("Area free")
+                    if self._callback:
+                        self._callback(False)
+                self.last_state = state
+            time.sleep_ms(self.interval_ms)
 
-    def get_status(self) -> dict:
-        """Get current PIR sensor status."""
-        return {
-            'movement_detected': self.movement_detected,
-            'time_since_detection': time.ticks_diff(time.ticks_ms(), self.last_movement_time) if self.movement_detected else 0,
-            'sensor_value': self.pir_sensor.value(),
-            'sensor_pin': PIR_SENSOR_PIN,
-            'debounce_delay': DEBOUNCE_DELAY_MS,
-            'last_detection_time': self.last_movement_time
-        }
-
-# Instância global
-pir_sensor = PIRSensor()
+sensor_controller = IRSensor()

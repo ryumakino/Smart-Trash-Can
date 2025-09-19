@@ -16,22 +16,9 @@ def main():
         led.off()
         time.sleep_ms(200)
     
-    print("Boot completed. Checking files...")
-    
-    # Listar arquivos Python
-    py_files = [f for f in os.listdir() if f.endswith('.py')]
-    print(f"Found {len(py_files)} Python files")
-    
-    # Carregar main application
-    if 'main.py' in py_files:
-        try:
-            print("Starting main application...")
-            with open('main.py') as f:
-                exec(f.read(), globals())   # roda o conteúdo do main.py
-        except Exception as e:
-            print(f"Error starting main: {e}")
-    else:
-        print("main.py not found!")
+    print("Boot completed. Starting main.py...")
 
-# Executar
-main()
+    try:
+        import main
+    except Exception as e:
+        print("Error importing main.py:", e)

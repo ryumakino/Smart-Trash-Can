@@ -1,174 +1,146 @@
-import socket
-import _thread
-import time
+# udp_comm_wifi.py
+import usocket as socket
+import utime as time
+import network
 from hardware_utils import log_message
-from io_utils import blink_led
-from system_utils import validate_ip
-from config import UDP_PORT, DISCOVERY_PORT, BROADCAST_IP, MSG_DISCOVERY
+from config import WIFI_SSID, WIFI_PASSWORD, WIFI_CONNECTION_TIMEOUT_MS
+
+UDP_PORT = 8888
+BUFFER_SIZE = 1024
+UDP_TIMEOUT = 0.1  # tempo de espera em segundos
+
+MSG_DISCOVER = "DISCOVER"
+MSG_HERE = "HERE"
+
 
 class UDPComm:
     def __init__(self):
-        self.udp_socket = None
-        self.discovery_sock = None
-        self.discovery_running = False
-        self.pc_ip_address = None
+        self.local_ip = "0.0.0.0"
+        self.port = UDP_PORT
+        self.sock = None
+        self.peer_addr = None
         self.initialized = False
-        self.last_discovery_time = 0
-        self.discovery_interval = 10000  # 10 segundos
+        self.wlan = network.WLAN(network.STA_IF)
+        self.connected = False
 
+    # -----------------------------
+    # Conexão Wi-Fi
+    # -----------------------------
+    def connect_wifi(self):
+        log_message("INFO", "Connecting to Wi-Fi...")
+        if not self.wlan.active():
+            self.wlan.active(True)
+        self.wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+
+        start = time.ticks_ms()
+        while not self.wlan.isconnected():
+            if time.ticks_diff(time.ticks_ms(), start) > WIFI_CONNECTION_TIMEOUT_MS:
+                log_message("ERROR", "Wi-Fi connection timeout")
+                return False
+            time.sleep_ms(500)
+
+        self.connected = True
+        self.local_ip = self.wlan.ifconfig()[0]
+        log_message("INFO", f"Wi-Fi connected, IP: {self.local_ip}")
+        return True
+
+    def get_ip(self):
+        return self.local_ip if self.connected else "0.0.0.0"
+
+    # -----------------------------
+    # Inicializa UDP
+    # -----------------------------
     def initialize(self):
-        """Initialize UDP socket"""
+        log_message("INFO", "Initializing UDPComm...")
+        if not self.connect_wifi():
+            return False
+
         try:
-            self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.udp_socket.setblocking(False)
-            # Bind to UDP port for receiving messages
-            self.udp_socket.bind(('0.0.0.0', UDP_PORT))
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.sock.setblocking(False)
+            self.sock.bind((self.local_ip, self.port))
             self.initialized = True
-            log_message("INFO", f"UDP communication initialized on port {UDP_PORT}")
-            return True
+            log_message("INFO", f"UDP initialized on {self.local_ip}:{self.port}")
         except Exception as e:
             log_message("ERROR", f"UDP initialization failed: {e}")
             return False
 
-    def _send_discovery_request(self):
-        """Send discovery request via broadcast"""
-        try:
-            discovery_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            discovery_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            
-            message = "DISCOVER_ESP32_REQUEST"
-            discovery_sock.sendto(message.encode(), (BROADCAST_IP, DISCOVERY_PORT))
-            discovery_sock.close()
-            
-            log_message("DEBUG", f"Discovery request sent to {BROADCAST_IP}:{DISCOVERY_PORT}")
-            return True
-        except Exception as e:
-            log_message("ERROR", f"Discovery request failed: {e}")
+        # Descobre peer
+        self.discover_peer()
+        return True
+
+    # -----------------------------
+    # Envio e leitura
+    # -----------------------------
+    def send(self, message: str, addr=None):
+        if not self.initialized:
+            log_message("ERROR", "UDP not initialized")
             return False
-
-    def _process_discovery_response(self, message, addr):
-        """Process a discovery response from PC"""
-        if message.startswith("DISCOVER_PC_RESPONSE"):
-            if validate_ip(addr[0]):
-                self.pc_ip_address = addr[0]
-                log_message("INFO", f"Discovered PC IP: {self.pc_ip_address}")
-                blink_led(3, 100)  # Sinal de descoberta bem-sucedida
-                return True
-        return False
-
-    def _handle_discovery(self):
-        """Handle discovery process - non-blocking version"""
-        self.discovery_running = True
-        
-        try:
-            self.discovery_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.discovery_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.discovery_sock.bind(('0.0.0.0', DISCOVERY_PORT))
-            self.discovery_sock.setblocking(False)
-
-            log_message("INFO", f"Discovery service started on port {DISCOVERY_PORT}")
-
-            while self.discovery_running:
-                current_time = time.ticks_ms()
-                
-                # Send discovery request periodically
-                if time.ticks_diff(current_time, self.last_discovery_time) > self.discovery_interval:
-                    self._send_discovery_request()
-                    self.last_discovery_time = current_time
-                
-                # Check for responses (non-blocking)
-                try:
-                    data, addr = self.discovery_sock.recvfrom(1024)
-                    if data:
-                        message = data.decode().strip()
-                        self._process_discovery_response(message, addr)
-                except OSError:
-                    # No data available
-                    pass
-                
-                time.sleep_ms(100)  # Yield to other threads
-
-        except Exception as e:
-            log_message("ERROR", f"Discovery handler failed: {e}")
-        finally:
-            if self.discovery_sock:
-                self.discovery_sock.close()
-            self.discovery_running = False
-
-    def start_discovery_service(self):
-        """Start discovery service"""
-        try:
-            # Primeiro envia uma solicitação imediatamente
-            self._send_discovery_request()
-            self.last_discovery_time = time.ticks_ms()
-            
-            # Inicia a thread de descoberta
-            _thread.start_new_thread(self._handle_discovery, ())
-            log_message("INFO", "Discovery service thread started")
-            return True
-        except Exception as e:
-            log_message("ERROR", f"Failed to start discovery thread: {e}")
+        target = addr if addr else self.peer_addr
+        if not target:
+            log_message("ERROR", "No target to send UDP message")
             return False
-
-    def stop_discovery_service(self):
-        """Stop discovery service"""
-        self.discovery_running = False
-        log_message("INFO", "Discovery service stopping...")
-
-    def get_pc_ip(self) -> str:
-        """Get current PC IP address"""
-        return self.pc_ip_address
-
-    def update_pc_ip(self, new_ip: str) -> bool:
-        """Update PC IP address"""
-        if validate_ip(new_ip):
-            self.pc_ip_address = new_ip
-            log_message("INFO", f"PC IP updated to: {self.pc_ip_address}")
-            return True
-        return False
-
-    def send_message(self, message: str) -> bool:
-        """Send message via UDP"""
         try:
-            if not self.initialized:
-                self.initialize()
-                
-            if not self.pc_ip_address or not validate_ip(self.pc_ip_address):
-                log_message("WARNING", f"No valid PC IP available: {self.pc_ip_address}")
-                return False
-            
-            addr = (self.pc_ip_address, UDP_PORT)
-            self.udp_socket.sendto(message.encode(), addr)
-            blink_led(1, 50)
-            log_message("DEBUG", f"UDP -> {message} to {addr}")
+            self.sock.sendto(message.encode(), target)
+            log_message("INFO", f"UDP -> {message} to {target}")
             return True
         except Exception as e:
             log_message("ERROR", f"UDP send failed: {e}")
             return False
 
-    def read_data(self) -> str:
-        """Read data from UDP"""
+    def read(self):
+        if not self.initialized:
+            return None
         try:
-            if not self.initialized:
-                self.initialize()
-                
-            data, addr = self.udp_socket.recvfrom(1024)
-            if data:
-                message = data.decode().strip()
-                blink_led(1, 50)
-                log_message("DEBUG", f"UDP <- {message} from {addr[0]}")
-                
-                # Atualiza IP do PC se a mensagem vier de um IP válido
-                if addr[0] != self.pc_ip_address and validate_ip(addr[0]):
-                    self.update_pc_ip(addr[0])
-                    
-                return message
-        except OSError:
-            # No data available (non-blocking socket)
-            pass
+            data, addr = self.sock.recvfrom(BUFFER_SIZE)
+            message = data.decode().strip()
+            log_message("INFO", f"UDP <- {message} from {addr}")
+            return message, addr
+        except Exception:
+            return None
+
+    # -----------------------------
+    # Descoberta de peer
+    # -----------------------------
+    def discover_peer(self, timeout=5000):
+        """Descobre automaticamente o peer na rede (UDP broadcast)"""
+        if not self.initialized:
+            log_message("ERROR", "UDP not initialized for discovery")
+            return False
+
+        end_time = time.ticks_ms() + timeout
+        broadcast_addr = ("255.255.255.255", self.port)
+
+        while time.ticks_ms() < end_time and not self.peer_addr:
+            self.send(MSG_DISCOVER, broadcast_addr)
+            msg = self.read()
+            if msg:
+                text, addr = msg
+                if text == MSG_DISCOVER:
+                    # responde ao peer
+                    self.send(MSG_HERE, addr)
+                elif text == MSG_HERE:
+                    self.peer_addr = addr
+                    log_message("INFO", f"Peer discovered at {addr}")
+                    return True
+            time.sleep_ms(200)
+
+        log_message("WARNING", "Peer discovery timeout")
+        return False
+
+    # -----------------------------
+    # Atualiza IP do PC
+    # -----------------------------
+    def update_pc_ip(self, ip: str):
+        try:
+            self.peer_addr = (ip, self.port)
+            log_message("INFO", f"PC IP updated to {self.peer_addr}")
+            return True
         except Exception as e:
-            log_message("ERROR", f"UDP read failed: {e}")
-        return ""
+            log_message("ERROR", f"Failed to update PC IP: {e}")
+            return False
+
 
 # Instância global
 udp_comm = UDPComm()

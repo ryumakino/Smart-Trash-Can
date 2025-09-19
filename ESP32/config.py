@@ -9,10 +9,11 @@ SERVO_POSITIONS = [0, 30, 60, 90, 120, 150]
 NEUTRAL_POSITION = 90  # Servo neutral position
 
 # ----------- NETWORK SETTINGS -----------
-UDP_PORT = 12345  # Communication port
+UDP_PORT = 8888  # Communication port (deve ser igual ao do PC)
+DISCOVERY_PORT = 9999  # Porta para discovery (deve ser igual ao do PC)
+BROADCAST_IP = "255.255.255.255"
 
 # ----------- DISCOVERY SETTINGS -----------
-DISCOVERY_PORT = 12346  # Porta para discovery
 DISCOVERY_RESPONSE_DELAY = 100  # ms delay para resposta
 ESP_HOSTNAME = "esp32-waste"  # Hostname para discovery
 
@@ -29,7 +30,7 @@ STATUS_REPORT_INTERVAL = 30000    # 30 seconds
 COMMUNICATION_TIMEOUT_MS = 5000   # 5 seconds for communication timeout
 WIFI_CONNECTION_TIMEOUT_MS = 15000  # 15 seconds for Wi-Fi connection
 DEBOUNCE_DELAY_MS = 200           # 200ms for button/sensor debouncing
-
+STATUS_UPDATE_INTERVAL_MS = 1000  # 1 segundo
 # ----------- SYSTEM STATES -----------
 NO_TYPE_SELECTED = -1
 SYSTEM_READY = "READY"

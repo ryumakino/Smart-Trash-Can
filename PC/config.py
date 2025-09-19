@@ -1,5 +1,5 @@
 import platform
-from typing import List, Optional
+from typing import List
 
 # =====================================================
 # ----------- OPERATING SYSTEM -----------------------
@@ -16,7 +16,7 @@ IS_LINUX: bool = OPERATION_SYSTEM == OS_LINUX
 IS_MAC: bool = OPERATION_SYSTEM == OS_MAC
 
 # =====================================================
-# ----------- COMMUNICATION ----------------
+# ----------- COMMUNICATION --------------------------
 # =====================================================
 
 # Serial
@@ -33,21 +33,15 @@ else:
     SERIAL_PORT: str = ""
 
 # UDP / Wi-Fi
-UDP_PORT = 8888
 DISCOVERY_PORT = 9999
 BROADCAST_IP = "255.255.255.255"
 BUFFER_SIZE = 1024
 UDP_TIMEOUT = 1
+ESP_HOSTNAME = "esp32-waste"
 
-# ----------- DISCOVERY SETTINGS -----------
-DISCOVERY_PORT = 12346  # Porta para discovery
-DISCOVERY_TIMEOUT = 2.0  # Timeout para discovery
-DISCOVERY_ATTEMPTS = 3  # Número de tentativas de discovery
-ESP_HOSTNAME = "esp32-waste"  # Hostname do ESP32
-BROADCAST_IP = "192.168.1.255"  # IP de broadcast da rede
-
-# Adicione esta constante para mensagens de discovery
-MSG_DISCOVERY = "DISCOVER_ESP32"
+# Discovery settings
+DISCOVERY_ATTEMPTS = 3
+DISCOVERY_TIMEOUT = 2.0
 
 # =====================================================
 # ----------- LOGS AND CHANNELS ----------------------
@@ -71,6 +65,20 @@ LOG_PREFIX_SYSTEM: str = "🔌"
 # Default communication messages
 MSG_NO_CHANNEL: str = "No available channel to send the message"
 MSG_ESP32_NOT_FOUND: str = "ESP32 channel could not be detected"
+
+# ESP32 message patterns
+ESP_MSG_MOVEMENT: str = "MOVEMENT_DETECTED"
+ESP_MSG_DISPOSAL_DONE: str = "DISPOSAL_DONE"
+ESP_MSG_ERROR: str = "ERROR"
+ESP_MSG_ERROR_ALT: str = "ERROR"
+ESP_MSG_SET_TYPE: str = "SET_TYPE"
+ESP_MSG_TYPE: str = "TYPE:"
+
+# ESP message logs
+LOG_MSG_INVALID_WASTE: str = "ERROR: Invalid waste type"
+LOG_MSG_MOVEMENT: str = "Movement detected"
+LOG_MSG_DISPOSAL_OK: str = "Disposal successfully processed!"
+LOG_MSG_ERROR_ESP32: str = "ERROR reported by ESP32"
 
 # =====================================================
 # ----------- MACHINE LEARNING -----------------------
@@ -98,7 +106,7 @@ WASTE_TYPE_PAPER: int = 1
 WASTE_TYPE_GLASS: int = 2
 WASTE_TYPE_METAL: int = 3
 WASTE_TYPE_TRASH: int = 4
-WASTE_TYPE_SCARDBOARD: int = 5
+WASTE_TYPE_CARDBOARD: int = 5
 
 # =====================================================
 # ----------- CAMERA / IMAGES ------------------------
@@ -115,23 +123,6 @@ SAVE_IMAGES: bool = True
 DISPLAY_TIME_MS: int = 1000
 BLUR_KERNEL: tuple = (3, 3)
 CAMERA_WARMUP_ATTEMPTS: int = 5
-
-# =====================================================
-# ----------- ESP32 / MESSAGES -----------------------
-# =====================================================
-
-ESP_MSG_MOVEMENT: str = "MOVEMENT_DETECTED"
-ESP_MSG_DISPOSAL_DONE: str = "DISPOSAL_DONE"
-ESP_MSG_ERROR: str = "ERROR"
-ESP_MSG_ERROR_ALT: str = "ERROR"
-ESP_MSG_SET_TYPE: str = "SET_TYPE"
-ESP_MSG_TYPE: str = "TYPE:"
-
-# ESP message logs
-LOG_MSG_INVALID_WASTE: str = "ERROR: Invalid waste type"
-LOG_MSG_MOVEMENT: str = "Movement detected"
-LOG_MSG_DISPOSAL_OK: str = "Disposal successfully processed!"
-LOG_MSG_ERROR_ESP32: str = "ERROR reported by ESP32"
 
 # =====================================================
 # ----------- MAIN SYSTEM ----------------------------

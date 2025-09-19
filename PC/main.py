@@ -1,5 +1,9 @@
 import time
 import traceback
+from setup_communication import setup_connections, comm_manager, process_esp32_messages, send_waste_type, get_connection_status
+from camera import capture_image
+from ml_model import setup_ml_model, classify_waste
+from utils import log_info, log_error, log_success, log_warning, log_camera
 from config import (
     LOG_INTERRUPTED,
     LOG_UNEXPECTED_ERROR,
@@ -7,84 +11,103 @@ from config import (
     LOG_IMAGE_FAIL,
     LOG_CLASSIFICATION_ERROR,
     LOG_SEND_OK,
-    LOG_SEND_FAIL
+    LOG_SEND_FAIL,
+    WASTE_TYPES,
+    LOG_MOVEMENT_DETECTED
 )
-from comunication import setup_connections, comm_manager, process_esp32_messages, send_waste_type
-from camera import process_movement, capture_image
-from ml_model import setup_ml_model, classify_waste, get_random_waste_type
-from utils import log_error, log_info, log_success, log_warning
+
+# ---------------- Helper functions ----------------
 
 def handle_movement(model):
-    """Handle movement detection event"""
-    log_info("Movement detected! Capturing image...")
-    image_path = capture_image()
-    if not image_path:
+    """
+    Handle movement detection:
+    - Capture image
+    - Classify waste
+    - Send waste type to ESP32
+    """
+    if not comm_manager.is_synchronized():
+        log_error("Cannot process movement - communication not synchronized")
+        return
+
+    log_camera(LOG_MOVEMENT_DETECTED)
+
+    image = capture_image()
+    if image is None:
         log_error(LOG_IMAGE_FAIL)
         return
-    
-    # Classify waste
+
+    waste_type = None
     if model:
         try:
-            waste_type, confidence = classify_waste(model, image_path)
-            log_info(f"ML Classification: Type {waste_type} with {confidence:.2f} confidence")
+            waste_type = classify_waste(model, image)
+            if waste_type is None:
+                log_error(LOG_CLASSIFICATION_ERROR)
         except Exception as e:
             log_error(f"{LOG_CLASSIFICATION_ERROR}: {e}")
-            waste_type = get_random_waste_type()
-            log_info(f"Random Classification: Type {waste_type} (fallback)")
+
+    if waste_type is not None:
+        if send_waste_type(waste_type):
+            log_success(f"{LOG_SEND_OK}: {waste_type} ({WASTE_TYPES[waste_type]})")
+        else:
+            log_error(f"{LOG_SEND_FAIL}: {waste_type}")
     else:
-        waste_type = get_random_waste_type()
-        log_info(f"Random Classification: Type {waste_type} (fallback)")
-    
-    # Send waste type to ESP32
-    if send_waste_type(waste_type):
-        log_success(f"{LOG_SEND_OK}: {waste_type}")
-    else:
-        log_error(f"{LOG_SEND_FAIL}: {waste_type}")
+        log_warning("Waste type not sent - classification unavailable")
+
 
 def handle_message_result(message_result, model):
-    """Handle message processing results"""
+    """
+    Process messages received from ESP32.
+    """
     if message_result['needs_processing']:
         if message_result['movement_detected']:
             handle_movement(model)
         elif message_result['waste_type_selected'] != -1:
             waste_type = message_result['waste_type_selected']
             log_info(f"Waste type received from ESP32: {waste_type}")
-            # Processar tipo de lixo recebido se necessário
-    
+
     if message_result['error_occurred']:
         log_error(f"ESP32 reported error: {message_result['error_message']}")
-        # Lógica de tratamento de erro aqui
-    
+
     if message_result['disposal_completed']:
         log_info("Disposal process completed successfully")
-        # Lógica pós-descarte aqui
 
-def main() -> None:
-    """Main function of the waste classification system."""
+# ---------------- Main ----------------
+
+def main():
     print("=" * 50)
     print("    WASTE CLASSIFICATION SYSTEM - PC")
     print("=" * 50)
 
-    # ---------------- Initialize connections ----------------
+    # --- Setup communication ---
     log_info("Setting up connections to ESP32...")
     if not setup_connections():
-        log_error("Failed to establish connection with ESP32")
+        log_error("Failed to establish synchronized connection with ESP32")
         return
 
-    # ---------------- Load ML model ----------------
+    # --- Load ML model ---
     log_info("Loading ML model...")
     model = setup_ml_model()
     if model is None:
         log_warning("Running in fallback mode without ML model")
 
-    # ---------------- Main loop ----------------
+    # --- Main loop ---
     log_info("Starting main processing loop...")
     try:
         while True:
+            # Check connection periodically
+            connection_status = get_connection_status()
+            if not connection_status['is_synchronized']:
+                log_warning("Communication lost synchronization. Attempting to reconnect...")
+                if not setup_connections():
+                    log_error("Failed to re-establish connection")
+                    break
+
+            # Process ESP32 messages
             message_result = process_esp32_messages()
             handle_message_result(message_result, model)
-            time.sleep(0.1)  # Pequena pausa para não sobrecarregar CPU
-            
+
+            time.sleep(0.1)
+
     except KeyboardInterrupt:
         log_info(LOG_INTERRUPTED)
     except Exception as e:
@@ -93,6 +116,7 @@ def main() -> None:
     finally:
         comm_manager.close_connections()
         log_success(LOG_CONNECTIONS_CLOSED)
+
 
 if __name__ == "__main__":
     main()
