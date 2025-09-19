@@ -1,5 +1,5 @@
 import time
-from .hardware_utils import log_message
+from hardware_utils import log_message
 
 def generate_id() -> str:
     return str(time.ticks_ms())

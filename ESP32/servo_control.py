@@ -6,7 +6,8 @@ from config import (
     SERVO_MOVEMENT_DELAY, MSG_SERVO_INITIALIZED, MSG_SERVO_MOVING,
     MSG_SERVO_POSITIONED, MSG_ERROR
 )
-from utils import log_message, safe_int, clamp
+from hardware_utils import log_message
+from math_utils import clamp
 
 class ServoController:
     def __init__(self):
@@ -71,7 +72,8 @@ class ServoController:
 
     def get_status(self) -> dict:
         """Get current servo status."""
-        from utils import get_uptime_ms
+        # CORREÇÃO: Importar de time_utils em vez de utils
+        from time_utils import get_uptime_ms
         
         return {
             'pin': SERVO_PIN,
@@ -88,4 +90,3 @@ class ServoController:
 
 # Instância global
 servo_controller = ServoController()
-servo_controller.initialize()

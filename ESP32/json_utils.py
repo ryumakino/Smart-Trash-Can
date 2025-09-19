@@ -1,5 +1,5 @@
 import ujson
-from .hardware_utils import log_message
+from hardware_utils import log_message
 
 def json_encode(obj):
     """Simple JSON encoder for MicroPython"""

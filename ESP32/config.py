@@ -17,8 +17,8 @@ DISCOVERY_RESPONSE_DELAY = 100  # ms delay para resposta
 ESP_HOSTNAME = "esp32-waste"  # Hostname para discovery
 
 # ----------- WI-FI CREDENTIALS -----------
-WIFI_SSID = "YOUR_NETWORK_NAME"
-WIFI_PASSWORD = "YOUR_PASSWORD"
+WIFI_SSID = "makedc"
+WIFI_PASSWORD = "deco747387"
 
 # ----------- TIMEOUTS AND DELAYS (ms) -----------
 MOVEMENT_TIMEOUT_MS = 10000       # 10 seconds

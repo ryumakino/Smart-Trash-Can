@@ -1,6 +1,7 @@
 import time
 from config import NEUTRAL_POSITION, WASTE_PROCESSING_DELAY, WASTE_TYPES
-from utils import log_message, get_uptime_ms
+from time_utils import get_uptime_ms
+from hardware_utils import log_message
 
 class DisposalProcess:
     def __init__(self, servo_controller, message_processor, disposal_control):
@@ -56,11 +57,10 @@ class DisposalProcess:
         self.disposal_control.set_processing(False)
         return True
 
-# Instância global (será inicializada no main)
+# Instância global
 disposal_process = None
 
 def initialize_disposal_process(servo_controller, message_processor, disposal_control):
-    """Initialize the disposal process system."""
     global disposal_process
     disposal_process = DisposalProcess(servo_controller, message_processor, disposal_control)
     return disposal_process

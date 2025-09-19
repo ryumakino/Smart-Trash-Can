@@ -1,4 +1,5 @@
-from utils import log_message, get_uptime_ms
+from time_utils import get_uptime_ms
+from hardware_utils import log_message
 from config import MSG_ERROR, MSG_DISPOSAL_CANCELLED, NO_TYPE_SELECTED
 
 class DisposalControl:
@@ -47,7 +48,6 @@ class DisposalControl:
 disposal_control = None
 
 def initialize_disposal_control(servo_controller, message_processor):
-    """Initialize the disposal control system."""
     global disposal_control
     disposal_control = DisposalControl(servo_controller, message_processor)
     return disposal_control

@@ -1,7 +1,7 @@
 from machine import Pin, Timer
 import time
 from config import PIR_SENSOR_PIN, MOVEMENT_TIMEOUT_MS, MSG_MOVEMENT_DETECTED, PREFIX_CANAL, MSG_TIMEOUT, DEBOUNCE_DELAY_MS
-from utils import log_message
+from hardware_utils import log_message
 
 class PIRSensor:
     def __init__(self):
@@ -10,17 +10,22 @@ class PIRSensor:
         self.last_movement_time = 0
         self.movement_detected = False
         self.callback_handler = None
-        
+        self.first_trigger_ignored = False  # <- flag nova
+
     def pir_callback(self, pin) -> None:
         """PIR sensor interrupt callback function."""
         try:
             if pin.value() == 1:
+                if not self.first_trigger_ignored:
+                    log_message("DEBUG", "Ignoring first PIR trigger (warm-up)")
+                    self.first_trigger_ignored = True
+                    return
+                
                 self.movement_detected = True
                 self.last_movement_time = time.ticks_ms()
                 
                 if self.callback_handler:
                     self.callback_handler()
-                    
         except Exception as e:
             log_message("ERROR", f"PIR callback error: {e}")
 
@@ -28,6 +33,10 @@ class PIRSensor:
         """Initialize PIR sensor with interrupt."""
         try:
             self.callback_handler = callback_handler
+            
+            # CORREÇÃO: usar sleep_ms em vez de sleep
+            time.sleep_ms(2000)  # 2 segundos para estabilização
+            
             self.pir_sensor.irq(trigger=Pin.IRQ_RISING, handler=self.pir_callback)
             
             # Start timeout timer

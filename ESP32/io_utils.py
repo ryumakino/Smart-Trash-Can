@@ -1,7 +1,7 @@
 import time
 from machine import Pin
 from config import LED_PIN
-from .hardware_utils import log_message
+from hardware_utils import log_message
 
 def blink_led(times: int = 3, delay: int = 200) -> None:
     try:

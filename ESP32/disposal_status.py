@@ -1,4 +1,4 @@
-from utils import get_uptime_ms
+from time_utils import get_uptime_ms
 from config import WASTE_TYPES
 
 class DisposalStatus:
@@ -40,11 +40,10 @@ class DisposalStatus:
         """Get disposal history."""
         return self.history
 
-# Instância global (será inicializada no main)
+# Instância global
 disposal_status = None
 
 def initialize_disposal_status(message_processor, disposal_control):
-    """Initialize the disposal status system."""
     global disposal_status
     disposal_status = DisposalStatus(message_processor, disposal_control)
     return disposal_status

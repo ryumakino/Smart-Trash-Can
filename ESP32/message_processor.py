@@ -1,4 +1,5 @@
-from utils import safe_int, json_encode, log_message
+from math_utils import safe_int
+from hardware_utils import log_message
 from config import NO_TYPE_SELECTED, MSG_TYPE_SELECTED, WASTE_TYPES
 
 class MessageProcessor:
@@ -8,8 +9,13 @@ class MessageProcessor:
         self.udp_comm = None
         self.wifi_manager = None
 
-    def initialize(self, serial_comm, udp_comm, wifi_manager):
+    def initialize(self):
         """Initialize with communication instances"""
+        # Importação direta
+        from serial_comm import serial_comm
+        from udp_comm import udp_comm
+        from wifi_manager import wifi_manager
+        
         self.serial_comm = serial_comm
         self.udp_comm = udp_comm
         self.wifi_manager = wifi_manager
@@ -71,3 +77,4 @@ class MessageProcessor:
 
 # Instância global
 message_processor = MessageProcessor()
+message_processor.initialize()  # Inicializa automaticamente

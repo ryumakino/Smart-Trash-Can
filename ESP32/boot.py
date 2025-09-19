@@ -1,30 +1,37 @@
-"""
-Boot script for ESP32 Smart Trash Can System.
-Runs on MicroPython startup.
-"""
-
+# boot.py - Versão simplificada e funcional
 import machine
 import time
-from config import LED_PIN
+import os
 
-def main() -> None:
-    """Main boot function."""
-    print("ESP32 Smart Trash Can Booting...")
+def main():
+    print("==========================================")
+    print("       ESP32 SMART TRASH CAN SYSTEM")
+    print("==========================================")
     
-    # Basic hardware test
-    led = machine.Pin(LED_PIN, machine.Pin.OUT)
-    for _ in range(3):
+    # Teste básico do hardware - LED
+    led = machine.Pin(2, machine.Pin.OUT)
+    for i in range(3):
         led.on()
         time.sleep_ms(200)
         led.off()
         time.sleep_ms(200)
     
-    print("Boot completed. Starting main application...")
+    print("Boot completed. Checking files...")
     
-    # Import and start main application
-    import main
-    main.main()
+    # Listar arquivos Python
+    py_files = [f for f in os.listdir() if f.endswith('.py')]
+    print(f"Found {len(py_files)} Python files")
+    
+    # Carregar main application
+    if 'main.py' in py_files:
+        try:
+            print("Starting main application...")
+            with open('main.py') as f:
+                exec(f.read(), globals())   # roda o conteúdo do main.py
+        except Exception as e:
+            print(f"Error starting main: {e}")
+    else:
+        print("main.py not found!")
 
-# Run main function if this is the main module
-if __name__ == "__main__":
-    main()
+# Executar
+main()
