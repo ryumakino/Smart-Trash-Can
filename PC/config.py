@@ -1,5 +1,5 @@
 import platform
-from typing import List
+from typing import List, Optional
 
 # =====================================================
 # ----------- OPERATING SYSTEM -----------------------
@@ -16,13 +16,8 @@ IS_LINUX: bool = OPERATION_SYSTEM == OS_LINUX
 IS_MAC: bool = OPERATION_SYSTEM == OS_MAC
 
 # =====================================================
-# ----------- COMMUNICATION CHANNELS ----------------
+# ----------- COMMUNICATION ----------------
 # =====================================================
-
-# Channel activation
-USE_SERIAL: bool = True
-USE_BLUETOOTH: bool = False
-USE_WIFI: bool = True
 
 # Serial
 SERIAL_BAUDRATE: int = 115200
@@ -37,14 +32,22 @@ else:
     SERIAL_PORT: str = ""
 
 # UDP / Wi-Fi
-ESP_IP: str = "192.168.1.100"
-PC_IP: str = "192.168.1.50"
 UDP_PORT: int = 12345
 UDP_TIMEOUT: float = 2.0
 MAX_RETRIES: int = 3
 BUFFER_SIZE: int = 1024
 PING_COUNT: int = 1
 PING_TIMEOUT: int = 1000
+
+# ----------- DISCOVERY SETTINGS -----------
+DISCOVERY_PORT = 12346  # Porta para discovery
+DISCOVERY_TIMEOUT = 2.0  # Timeout para discovery
+DISCOVERY_ATTEMPTS = 3  # Número de tentativas de discovery
+ESP_HOSTNAME = "esp32-waste"  # Hostname do ESP32
+BROADCAST_IP = "192.168.1.255"  # IP de broadcast da rede
+
+# Adicione esta constante para mensagens de discovery
+MSG_DISCOVERY = "DISCOVER_ESP32"
 
 # =====================================================
 # ----------- LOGS AND CHANNELS ----------------------
@@ -64,11 +67,6 @@ LOG_PREFIX_MOVEMENT: str = "🎯"
 LOG_PREFIX_RECEIVE: str = "📥"
 LOG_PREFIX_SEND: str = "📤"
 LOG_PREFIX_SYSTEM: str = "🔌"
-
-# Channel names
-CHANNEL_SERIAL: str = "SERIAL"
-CHANNEL_UDP: str = "UDP"
-CHANNEL_NONE: str = "NONE"
 
 # Default communication messages
 MSG_NO_CHANNEL: str = "No available channel to send the message"
@@ -145,9 +143,8 @@ STATUS_CHECK_INTERVAL: int = 30  # seconds
 NO_TYPE_SELECTED: int = -1
 
 # System logs
-LOG_HEADER: str = "WASTE CLASSIFICATION SYSTEM - PC"
 LOG_CONNECTION_FAIL: str = "Failed to initialize connections"
-LOG_CONNECTION_OK: str = "Connections successfully initialized!"
+LOG_CONNECTION_OK: str = "Connection successfully initialized!"
 LOG_CONNECTION_ERROR: str = "Unable to initialize connections. Check ESP32 and network."
 LOG_MODEL_OK: str = "ML model loaded successfully!"
 LOG_MODEL_FAIL: str = "Failed to load ML model. Fallback mode activated."
@@ -162,7 +159,7 @@ LOG_SEND_FAIL: str = "Failed to send waste type"
 LOG_STATUS_ERROR: str = "Error obtaining system status"
 LOG_INTERRUPTED: str = "Interrupted by user"
 LOG_UNEXPECTED_ERROR: str = "Unexpected ERROR"
-LOG_CONNECTIONS_CLOSED: str = "Connections closed. Program terminated."
+LOG_CONNECTIONS_CLOSED: str = "Connection closed. Program terminated."
 LOG_MSG_SYSTEM_STATUS: str = "SYSTEM STATUS"
 
 # =====================================================
@@ -173,12 +170,3 @@ TIME_SERIAL_WAIT: float = 2.0
 TIME_CAMERA_WARMUP: float = 0.1
 TIME_MAIN_LOOP_SLEEP: float = 0.05
 TIME_STATUS_CHECK: int = 30
-
-# =====================================================
-# ----------- PROCESSING CONSTANTS -------------------
-# =====================================================
-
-PROCESSING_SUCCESS: bool = True
-PROCESSING_FAIL: bool = False
-IMAGE_PREPROCESS_SUCCESS: bool = True
-IMAGE_PREPROCESS_FAIL: bool = False

@@ -1,8 +1,60 @@
 import cv2
 import numpy as np
-from typing import Optional
-from config import CAMERA_ID, CAPTURE_WIDTH, CAPTURE_HEIGHT, CAMERA_WARMUP_ATTEMPTS, SAVE_IMAGES, IMAGE_SAVE_PATH, IMAGE_FORMAT, IMAGE_WIDTH, IMAGE_HEIGHT, BLUR_KERNEL, DISPLAY_TIME_MS
-from utils import log_error, log_success
+import traceback
+from typing import Optional, Any
+from config import (
+    CAMERA_ID, 
+    CAPTURE_WIDTH, 
+    CAPTURE_HEIGHT, 
+    CAMERA_WARMUP_ATTEMPTS, 
+    SAVE_IMAGES, 
+    IMAGE_SAVE_PATH, 
+    IMAGE_FORMAT, 
+    IMAGE_WIDTH, 
+    IMAGE_HEIGHT, 
+    BLUR_KERNEL, 
+    DISPLAY_TIME_MS,
+    LOG_MOVEMENT_DETECTED,
+    LOG_CLASSIFICATION_ERROR,
+    LOG_SEND_OK,
+    LOG_SEND_FAIL,
+    LOG_IMAGE_FAIL,
+    LOG_IMAGE_ERROR,
+    WASTE_TYPES
+)
+from ml_model import classify_waste
+from utils import log_error, log_success, log_camera, send_waste_type
+
+def process_movement(model: Optional[Any]) -> None:
+    """
+    Process movement detection and waste classification.
+    
+    Args:
+        model: Loaded ML model or None
+    """
+    log_camera(LOG_MOVEMENT_DETECTED)
+    try:
+        image = capture_image()
+        if image is not None:
+            try:
+                waste_type = classify_waste(model, image) if model else None
+                if waste_type is None:
+                    log_error(LOG_CLASSIFICATION_ERROR)
+            except Exception as e:
+                log_error(f"{LOG_CLASSIFICATION_ERROR}: {e}")
+                traceback.print_exc()
+
+            # Send waste type to ESP32
+            if send_waste_type(waste_type):
+                log_success(f"{LOG_SEND_OK}: {waste_type} ({WASTE_TYPES[waste_type]})")
+            else:
+                log_error(LOG_SEND_FAIL)
+        else:
+            log_error(LOG_IMAGE_FAIL)
+    except Exception as e:
+        log_error(f"{LOG_IMAGE_ERROR}: {e}")
+        traceback.print_exc()
+
 
 def capture_image() -> Optional[np.ndarray]:
     """

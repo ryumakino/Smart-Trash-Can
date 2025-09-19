@@ -29,3 +29,31 @@ def validate_ip(ip: str) -> bool:
         return True
     except:
         return False
+
+def get_network_info() -> dict:
+    """Retorna informações da rede"""
+    try:
+        import network
+        wlan = network.WLAN(network.STA_IF)
+        if wlan.isconnected():
+            ip, subnet, gateway, dns = wlan.ifconfig()
+            return {
+                'ip': ip,
+                'subnet': subnet,
+                'gateway': gateway,
+                'dns': dns,
+                'mac': ':'.join(['%02x' % i for i in wlan.config('mac')]),
+                'hostname': network.hostname() if hasattr(network, 'hostname') else 'esp32',
+                'connected': True
+            }
+    except:
+        pass
+    return {
+        'ip': '0.0.0.0',
+        'subnet': '0.0.0.0',
+        'gateway': '0.0.0.0',
+        'dns': '0.0.0.0',
+        'mac': 'unknown',
+        'hostname': 'esp32',
+        'connected': False
+    }

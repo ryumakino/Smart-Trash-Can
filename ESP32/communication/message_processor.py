@@ -1,73 +1,73 @@
 from utils import safe_int, json_encode, log_message
-from config import NO_TYPE_SELECTED, MSG_TYPE_SELECTED, WASTE_TYPES, CMD_SET_TYPE, CMD_TYPE, CMD_STATUS, CMD_GET_STATUS, MSG_STATUS, CHANNEL_SERIAL, CHANNEL_UDP
-from communication.channel_manager import update_channel, get_active_channel
-from communication.serial_comm import send_serial_message, read_serial_data
-from communication.udp_comm import send_udp_message, read_udp_data
-from utils import create_status_dict
+from config import NO_TYPE_SELECTED, MSG_TYPE_SELECTED, WASTE_TYPES
 
-selected_waste_type = NO_TYPE_SELECTED
+class MessageProcessor:
+    def __init__(self):
+        self.selected_waste_type = NO_TYPE_SELECTED
+        self.serial_comm = None
+        self.udp_comm = None
+        self.wifi_manager = None
 
-def process_type_selection(type_num: int) -> bool:
-    global selected_waste_type
-    if 0 <= type_num <= 5:
-        selected_waste_type = type_num
-        send_message(f"{MSG_TYPE_SELECTED}:{type_num}:{WASTE_TYPES[type_num]}")
-        return True
-    return False
+    def initialize(self, serial_comm, udp_comm, wifi_manager):
+        """Initialize with communication instances"""
+        self.serial_comm = serial_comm
+        self.udp_comm = udp_comm
+        self.wifi_manager = wifi_manager
 
-def process_received_data(data: str, source_channel: str) -> bool:
-    clean_data = data.strip().upper()
-    
-    if clean_data in ['0','1','2','3','4','5']:
-        return process_type_selection(safe_int(clean_data))
-    
-    if clean_data.startswith(CMD_SET_TYPE) or clean_data.startswith(CMD_TYPE):
-        parts = clean_data.split(":")
-        if len(parts) >= 2:
-            type_num = safe_int(parts[1], NO_TYPE_SELECTED)
-            return process_type_selection(type_num)
-    
-    if clean_data in [CMD_STATUS, CMD_GET_STATUS]:
-        status_msg = f"{MSG_STATUS}:{get_active_channel()}:{selected_waste_type}"
-        send_message(status_msg)
-        return True
-    
-    log_message("WARNING", f"Unrecognized command from {source_channel}: {data}")
-    return False
-
-def send_message(message: str) -> bool:
-    active_channel = get_active_channel()
-    success = False
-    
-    if active_channel == CHANNEL_SERIAL:
-        success = send_serial_message(message)
-    elif active_channel == CHANNEL_UDP:
-        success = send_udp_message(message)
-    
-    if not success:
-        success = send_serial_message(message) or send_udp_message(message)
-    
-    return success
-
-def read_messages() -> bool:
-    messages_received = False
-    data = read_serial_data()
-    if data:
-        process_received_data(data, CHANNEL_SERIAL)
-        messages_received = True
-    data = read_udp_data()
-    if data:
-        process_received_data(data, CHANNEL_UDP)
-        messages_received = True
-    return messages_received
-
-def send_system_status() -> bool:
-    try:
-        status = create_status_dict()
-        status['selected_type'] = selected_waste_type
-        status['active_channel'] = get_active_channel()
-        status_json = json_encode(status)
-        return send_message(f"{MSG_STATUS}_FULL:{status_json}")
-    except Exception as e:
-        log_message("ERROR", f"Failed to send system status: {e}")
+    def process_type_selection(self, type_num: int) -> bool:
+        if 0 <= type_num <= 5:
+            self.selected_waste_type = type_num
+            self.send_message(f"{MSG_TYPE_SELECTED}:{type_num}:{WASTE_TYPES[type_num]}")
+            return True
         return False
+
+    def process_received_data(self, data: str, source_channel: str) -> bool:
+        clean_data = data.strip().upper()
+        
+        # Comando para atualizar IP do PC
+        if clean_data.startswith("PC_IP:"):
+            parts = clean_data.split(":")
+            if len(parts) >= 2 and self.udp_comm.update_pc_ip(parts[1]):
+                log_message("INFO", f"PC IP updated via command: {parts[1]}")
+                self.send_message(f"PC_IP_ACK:{parts[1]}")
+                return True
+        
+        # Processamento normal de comandos
+        if clean_data in ['0','1','2','3','4','5']:
+            return self.process_type_selection(safe_int(clean_data))
+        
+        log_message("WARNING", f"Unrecognized command from {source_channel}: {data}")
+        return False
+
+    def send_message(self, message: str) -> bool:
+        """Send message through available channels"""
+        # Tenta primeiro pelo Serial
+        if self.serial_comm and self.serial_comm.send_message(message):
+            return True
+        
+        # Se não deu, tenta pelo UDP
+        if self.udp_comm and self.udp_comm.send_message(message):
+            return True
+
+        return False
+
+    def read_messages(self) -> bool:
+        """Read messages from all channels"""
+        # Lê do Serial
+        if self.serial_comm:
+            data = self.serial_comm.read_data()
+            if data:
+                self.process_received_data(data, "SERIAL")
+                return True
+        
+        # Lê do UDP
+        if self.udp_comm:
+            data = self.udp_comm.read_data()
+            if data:
+                self.process_received_data(data, "UDP")
+                return True
+                
+        return False
+
+# Instância global
+message_processor = MessageProcessor()
