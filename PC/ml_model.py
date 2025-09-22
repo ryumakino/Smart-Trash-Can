@@ -1,73 +1,78 @@
 import numpy as np
-from typing import Optional, Any
+from typing import Optional, Any, List
 import traceback
-from config import (
-    MODEL_PATH,
-    LOG_MODEL_OK,
-    LOG_MODEL_FAIL,
-    LOG_MODEL_NOT_LOADED,
-    LOG_MODEL_PREPROCESS_FAIL,
-    LOG_PREFIX_MODEL,
-    LOG_MODEL_CLASSIFICATION,
-    WASTE_TYPES,
-    CONFIDENCE_THRESHOLD,
-    LOG_MODEL_LOW_CONFIDENCE,
-    LOG_MODEL_CLASSIFICATION_ERROR
-)
 from camera import preprocess_image
-from utils import log_message, log_error, log_success
+from utils import log_message, log_error, log_info
 
-def setup_ml_model() -> Optional[Any]:
-    """Carrega o modelo ML treinado."""
-    try:
-        model = load_model()
-        if model:
-            log_success(LOG_MODEL_OK)
-            return model
-    except Exception as e:
-        log_error(f"ML setup error: {e}")
-        traceback.print_exc()
-    log_message(LOG_PREFIX_MODEL, LOG_MODEL_FAIL)
-    return None
+WASTE_TYPES: List[str] = ["PLASTICO", "PAPEL", "VIDRO", "METAL", "LIXO", "PAPELAO"]
+CONFIDENCE_THRESHOLD: float = 0.6
+
+# Simulação de um modelo treinado (substitua por seu modelo real)
+class MockModel:
+    def __init__(self):
+        self.input_shape = (384, 512, 3)
+        self.classes = WASTE_TYPES
+    
+    def predict(self, image):
+        # Simulação de predição
+        fake_probs = np.random.dirichlet(np.ones(len(WASTE_TYPES)), size=1)[0]
+        return fake_probs
 
 def load_model() -> Optional[Any]:
-    """Retorna o modelo ML (mock ou real)."""
-    # Substituir por código real de carregamento de modelo
-    # Ex.: tf.keras.models.load_model(MODEL_PATH)
-    return "trained_model_mock"
-
-def classify_waste(model: Optional[Any], image: np.ndarray) -> Optional[int]:
-    """Classifica a imagem capturada e retorna tipo de lixo."""
-    if model is None:
-        log_error(LOG_MODEL_NOT_LOADED)
+    """
+    Carrega o modelo ML de classificação de resíduos.
+    """
+    try:
+        # Substitua por: 
+        # from tensorflow.keras.models import load_model
+        # return load_model('caminho/para/seu/modelo.h5')
+        
+        model = MockModel()
+        log_info("Modelo ML carregado (modo simulação)")
+        return model
+        
+    except Exception as e:
+        log_error(f"Falha ao carregar modelo ML: {e}")
+        traceback.print_exc()
         return None
 
+def classify_waste(model: Optional[Any], image: np.ndarray) -> Optional[int]:
+    """
+    Classifica a imagem e retorna o índice do tipo de resíduo.
+    """
+    if model is None:
+        log_error("Modelo não carregado - usando classificação aleatória")
+        return np.random.randint(0, len(WASTE_TYPES))
+
     try:
+        # Pré-processamento
         processed_img = preprocess_image(image)
         if processed_img is None:
-            log_error(LOG_MODEL_PREPROCESS_FAIL)
+            log_error("Falha no pré-processamento da imagem")
             return None
 
-        # Mock prediction (substituir por inferência real)
-        predicted_class = np.random.randint(0, len(WASTE_TYPES))
-        confidence = np.random.uniform(0.5, 1.0)
+        # Predição (simulada ou real)
+        if isinstance(model, MockModel):
+            # Modo simulação
+            probabilities = model.predict(processed_img)
+        else:
+            # Modo real (descomente quando tiver modelo)
+            # probabilities = model.predict(np.expand_dims(processed_img, axis=0))[0]
+            probabilities = model.predict(processed_img)
 
-        log_message(LOG_PREFIX_MODEL,
-                    f"{LOG_MODEL_CLASSIFICATION}: {WASTE_TYPES[predicted_class]} (Confidence: {confidence:.2%})")
+        # Encontra a classe com maior probabilidade
+        predicted_class = np.argmax(probabilities)
+        confidence = probabilities[predicted_class]
+
+        log_info(f"Classificado como: {WASTE_TYPES[predicted_class]} (Confiança: {confidence:.2%})")
 
         if confidence >= CONFIDENCE_THRESHOLD:
             return predicted_class
         else:
-            log_error(LOG_MODEL_LOW_CONFIDENCE)
+            log_error(f"Baixa confiança ({confidence:.2%}) - abaixo do threshold")
             return None
 
     except Exception as e:
-        log_error(f"{LOG_MODEL_CLASSIFICATION_ERROR}: {e}")
+        log_error(f"ERRO na classificação ML: {e}")
         traceback.print_exc()
         return None
-
-def get_model_summary(model: Optional[Any]) -> str:
-    """Retorna resumo do modelo (mock)."""
-    if model is None:
-        return LOG_MODEL_NOT_LOADED
-    return "Model summary not implemented (mock)"

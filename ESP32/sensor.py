@@ -1,56 +1,52 @@
-import machine
-import utime as time
-from hardware_utils import log_message
-from udp_comm import udp_comm       # sua classe UDPComm
-from serial_comm import serial_comm # sua classe SerialComm
-from config import PIR_SENSOR_PIN
+from machine import Pin
+import time
+import _thread
+from utils import log_info, log_error
 
 class IRSensor:
-    def __init__(self):
-        self.sensor = machine.Pin(PIR_SENSOR_PIN, machine.Pin.IN)
+    def __init__(self, pin=34, callback=None, debounce_time=200):
+        self.ir = Pin(pin, Pin.IN)
         self.last_state = 0
-        self.interval_ms = 500
-        self.udp = udp_comm
-        self.serial = serial_comm
-        self._callback = None  # callback para movimento
-        self.detected = False  # ← Adicione este atributo para rastrear o estado
-
-        # Inicializa UDP se fornecido
-        if self.udp and not self.udp.initialized:
-            self.udp.initialize()
-            self.udp.discover_peer()
-
-    def is_detected(self):
-        """Retorna True se movimento está sendo detectado no momento"""
-        return self.sensor.value()
-
-    def send_message(self, message: str):
-        if self.serial and self.serial.initialized:
-            self.serial.send(message)
-        if self.udp and self.udp.peer_addr:
-            self.udp.send(message)
-        log_message("INFO", f"Sensor -> {message}")
-
-    def set_callback(self, callback):
-        """Define uma função que será chamada quando movimento for detectado."""
-        self._callback = callback
+        self.last_detection = 0
+        self.callback = callback
+        self.debounce_time = debounce_time  # ms
+        self.running = False
+        self.thread = None
 
     def monitor(self):
-        log_message("INFO", "Starting IR sensor monitoring...")
-        while True:
-            state = self.read()
-            if state != self.last_state:
-                if state == 1:
-                    self.detected = True  # ← Atualiza o estado
-                    self.send_message("Movement detected!")
-                    if self._callback:
-                        self._callback(True)
-                else:
-                    self.detected = False  # ← Atualiza o estado
-                    self.send_message("Area free")
-                    if self._callback:
-                        self._callback(False)
-                self.last_state = state
-            time.sleep_ms(self.interval_ms)
+        """Monitora sensor IR com debounce"""
+        log_info("Iniciando monitoramento do sensor IR")
+        
+        while self.running:
+            try:
+                current_state = self.ir.value()
+                current_time = time.ticks_ms()
+                
+                # Detecta transição de estado com debounce
+                if (current_state != self.last_state and 
+                    time.ticks_diff(current_time, self.last_detection) > self.debounce_time):
+                    
+                    self.last_state = current_state
+                    self.last_detection = current_time
+                    
+                    if current_state == 1:  # Detecção ativa
+                        log_info("[IR] Movimento detectado")
+                        if self.callback:
+                            self.callback()
+                
+                time.sleep(0.05)  # Polling a cada 50ms
+                
+            except Exception as e:
+                log_error(f"Erro no sensor IR: {e}")
+                time.sleep(1)
 
-sensor_controller = IRSensor()
+    def start(self):
+        """Inicia monitoramento em thread separada"""
+        if not self.running:
+            self.running = True
+            self.thread = _thread.start_new_thread(self.monitor, ())
+
+    def stop(self):
+        """Para o monitoramento"""
+        self.running = False
+        log_info("Sensor IR parado")
