@@ -1,24 +1,33 @@
-# boot.py - Versão simplificada e funcional
 import machine
 import time
 import os
 
-def main():
-    print("==========================================")
-    print("       ESP32 SMART TRASH CAN SYSTEM")
-    print("==========================================")
-    
-    # Teste básico do hardware - LED
+def boot_sequence():
+    """Sequência de boot simplificada"""
     led = machine.Pin(2, machine.Pin.OUT)
-    for i in range(3):
+    
+    # Pisca LED para indicar boot
+    for _ in range(3):
         led.on()
         time.sleep_ms(200)
         led.off()
         time.sleep_ms(200)
     
-    print("Boot completed. Starting main.py...")
+    print("=" * 40)
+    print("  ESP32 SMART TRASH CAN")
+    print("=" * 40)
+    
+    # Verifica arquivos essenciais
+    essential_files = ['main.py', 'config.py', 'utils.py']
+    for file in essential_files:
+        try:
+            with open(file, 'r'):
+                print(f"✓ {file} encontrado")
+        except:
+            print(f"✗ {file} não encontrado")
+    
+    print("Sistema pronto!")
+    led.on()  # LED ligado indica sistema pronto
 
-    try:
-        import main
-    except Exception as e:
-        print("Error importing main.py:", e)
+if __name__ == "__main__":
+    boot_sequence()

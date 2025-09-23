@@ -1,52 +1,44 @@
-from machine import Pin
+import machine
 import time
 import _thread
-from utils import log_info, log_error
+from config import ESP32Config
+from utils import get_logger
 
+logger = get_logger("ESP32_IR")
+
+# --- Classe IRSensor ---
 class IRSensor:
-    def __init__(self, pin=34, callback=None, debounce_time=200):
-        self.ir = Pin(pin, Pin.IN)
-        self.last_state = 0
-        self.last_detection = 0
+    def __init__(self, pin=ESP32Config.IR_SENSOR_PIN, callback=None, check_interval=0.1, active_high=True):
+        self.active_high = active_high
+        self.pin = machine.Pin(pin, machine.Pin.IN,
+                               machine.Pin.PULL_DOWN if active_high else machine.Pin.PULL_UP)
         self.callback = callback
-        self.debounce_time = debounce_time  # ms
-        self.running = False
-        self.thread = None
+        self.check_interval = check_interval
+        self.last_state = None
+        self.running = True
+        _thread.start_new_thread(self._monitor, ())
 
-    def monitor(self):
-        """Monitora sensor IR com debounce"""
-        log_info("Iniciando monitoramento do sensor IR")
-        
+    def is_detected(self):
+        val = self.pin.value()
+        return val == 1 if self.active_high else val == 0
+
+    def _monitor(self):
+        consecutive_detections = 0
+        threshold = 2
         while self.running:
-            try:
-                current_state = self.ir.value()
-                current_time = time.ticks_ms()
-                
-                # Detecta transição de estado com debounce
-                if (current_state != self.last_state and 
-                    time.ticks_diff(current_time, self.last_detection) > self.debounce_time):
-                    
-                    self.last_state = current_state
-                    self.last_detection = current_time
-                    
-                    if current_state == 1:  # Detecção ativa
-                        log_info("[IR] Movimento detectado")
-                        if self.callback:
-                            self.callback()
-                
-                time.sleep(0.05)  # Polling a cada 50ms
-                
-            except Exception as e:
-                log_error(f"Erro no sensor IR: {e}")
-                time.sleep(1)
+            detected = self.is_detected()
+            consecutive_detections = consecutive_detections + 1 if detected else 0
+            confirmed = consecutive_detections >= threshold
+            if confirmed != self.last_state:
+                self.last_state = confirmed
+                if confirmed:
+                    logger.info(f"[IRSensor] Movimento detectado! Pin={self.pin.value()}")
+                    if self.callback:
+                        self.callback()
+            time.sleep(self.check_interval)
 
-    def start(self):
-        """Inicia monitoramento em thread separada"""
-        if not self.running:
-            self.running = True
-            self.thread = _thread.start_new_thread(self.monitor, ())
+    def get_raw_value(self):
+        return self.pin.value()
 
     def stop(self):
-        """Para o monitoramento"""
         self.running = False
-        log_info("Sensor IR parado")

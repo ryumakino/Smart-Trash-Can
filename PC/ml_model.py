@@ -2,7 +2,7 @@ import numpy as np
 from typing import Optional, Any, List
 import traceback
 from camera import preprocess_image
-from utils import log_message, log_error, log_info
+from utils import log_error, log_info
 
 WASTE_TYPES: List[str] = ["PLASTICO", "PAPEL", "VIDRO", "METAL", "LIXO", "PAPELAO"]
 CONFIDENCE_THRESHOLD: float = 0.6
