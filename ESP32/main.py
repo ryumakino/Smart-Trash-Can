@@ -5,7 +5,7 @@ from utils import get_logger
 from sensor import IRSensor
 from udp_communicator import UDPCommunicator
 from servo_control import ServoController
-from wifi_manager import WiFiManager  # Novo import
+from network_manager import WiFiManager  # Novo import
 
 logger = get_logger("ESP32_IR_UDP")
 

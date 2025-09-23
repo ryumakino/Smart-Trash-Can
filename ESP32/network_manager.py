@@ -1,7 +1,7 @@
 # wifi_manager.py
 import network
 import time
-from config import ESP32Config
+from config import WiFiConfig
 from utils import get_logger
 
 logger = get_logger("WiFiManager")
@@ -20,12 +20,12 @@ class WiFiManager:
             self.ip = self.sta_if.ifconfig()[0]
             return True
 
-        logger.info(f"📡 Conectando ao Wi-Fi: {ESP32Config.WIFI_SSID}")
+        logger.info(f"📡 Conectando ao Wi-Fi: {WiFiConfig.SSID}")
         self.sta_if.active(True)
         
-        for attempt in range(ESP32Config.MAX_RETRIES):
+        for attempt in range(WiFiConfig.MAX_RETRIES):
             try:
-                self.sta_if.connect(ESP32Config.WIFI_SSID, ESP32Config.WIFI_PASSWORD)
+                self.sta_if.connect(WiFiConfig.SSID, WiFiConfig.PASSWORD)
                 
                 # Aguarda conexão
                 for _ in range(20):  # Aguarda até 20 segundos
@@ -37,11 +37,11 @@ class WiFiManager:
                     time.sleep(1)
                 
                 logger.warning(f"⏳ Tentativa {attempt + 1} falhou. Tentando novamente...")
-                time.sleep(ESP32Config.RETRY_DELAY)
+                time.sleep(WiFiConfig.RETRY_DELAY)
                 
             except Exception as e:
                 logger.error(f"❌ Erro na conexão Wi-Fi: {e}")
-                time.sleep(ESP32Config.RETRY_DELAY)
+                time.sleep(WiFiConfig.RETRY_DELAY)
 
         logger.error("❌ Falha ao conectar ao Wi-Fi")
         return False
