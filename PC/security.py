@@ -1,86 +1,67 @@
-import hashlib
-import hmac
-import json
 import time
-from config import SystemConfig  # Importação correta
-from utils import get_logger
-
-logger = get_logger("Security")
+import json
+import hmac
+import hashlib
+import base64
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 
 class SecurityManager:
-    def __init__(self, auth_key=None):
-        self.auth_key = (auth_key or SystemConfig.AUTH_KEY).encode()
-    
-    def generate_auth_token(self, message_prefix="AUTH"):
-        """Gera token de autenticação com timestamp"""
-        timestamp = str(int(time.time()))
-        message = f"{message_prefix}_{timestamp}".encode()
-        signature = hmac.new(self.auth_key, message, hashlib.sha256).hexdigest()
-        
-        token = {
-            'timestamp': timestamp,
-            'signature': signature,
-            'message': message.decode()
+    def __init__(self, auth_key: str, token_timeout: int):
+        if isinstance(auth_key, str):
+            auth_key = auth_key.encode()
+        self.auth_key = hashlib.sha256(auth_key).digest()  # 32 bytes
+        self.token_timeout = token_timeout
+
+    # -------- AES Helpers --------
+    def _pad(self, s: bytes) -> bytes:
+        pad_len = 16 - (len(s) % 16)
+        return s + bytes([pad_len]) * pad_len
+
+    def _unpad(self, s: bytes) -> bytes:
+        return s[:-s[-1]]
+
+    # -------- Encrypt / Decrypt --------
+    def encrypt_message(self, msg: str) -> str:
+        timestamp = int(time.time())
+        payload = json.dumps({"message": msg, "timestamp": timestamp}).encode()
+
+        iv = get_random_bytes(16)
+        cipher = AES.new(self.auth_key, AES.MODE_CBC, iv)
+        encrypted = cipher.encrypt(self._pad(payload))
+
+        # Gera HMAC do conteúdo criptografado
+        signature = hmac.new(self.auth_key, iv + encrypted, hashlib.sha256).hexdigest()
+
+        packet = {
+            "iv": base64.b64encode(iv).decode(),
+            "data": base64.b64encode(encrypted).decode(),
+            "signature": signature,
         }
-        return json.dumps(token)
-    
-    def verify_token(self, token_str, message_prefix="AUTH"):
-        """Verifica token de autenticação"""
+        return json.dumps(packet)
+
+    def decrypt_message(self, enc_str: str):
         try:
-            token = json.loads(token_str)
-            timestamp = int(token['timestamp'])
-            current_time = int(time.time())
-            
-            # Verifica expiração
-            if abs(current_time - timestamp) > SystemConfig.TOKEN_TIMEOUT:
-                return False
-            
-            # Verifica assinatura
+            packet = json.loads(enc_str)
+            iv = base64.b64decode(packet["iv"])
+            encrypted = base64.b64decode(packet["data"])
+            signature = packet["signature"]
+
+            # Verifica HMAC
             expected_signature = hmac.new(
-                self.auth_key, 
-                token['message'].encode(), 
-                hashlib.sha256
+                self.auth_key, iv + encrypted, hashlib.sha256
             ).hexdigest()
-            
-            return hmac.compare_digest(expected_signature, token['signature'])
-        except:
-            return False
-    
-    def encrypt_message(self, msg):
-        """Criptografa mensagem com HMAC"""
-        timestamp = str(int(time.time()))
-        message_data = {
-            'message': msg,
-            'timestamp': timestamp
-        }
-        message_str = json.dumps(message_data)
-        signature = hmac.new(self.auth_key, message_str.encode(), hashlib.sha256).hexdigest()
-        
-        encrypted = {
-            'data': message_data,
-            'signature': signature
-        }
-        return json.dumps(encrypted)
-    
-    def decrypt_message(self, encrypted_str):
-        """Descriptografa e verifica mensagem"""
-        try:
-            encrypted = json.loads(encrypted_str)
-            data_str = json.dumps(encrypted['data'])
-            expected_signature = hmac.new(
-                self.auth_key, 
-                data_str.encode(), 
-                hashlib.sha256
-            ).hexdigest()
-            
-            if not hmac.compare_digest(expected_signature, encrypted['signature']):
+            if not hmac.compare_digest(signature, expected_signature):
                 return None
-            
-            # Verifica timestamp
-            timestamp = int(encrypted['data']['timestamp'])
-            if abs(int(time.time()) - timestamp) > SystemConfig.TOKEN_TIMEOUT:
+
+            cipher = AES.new(self.auth_key, AES.MODE_CBC, iv)
+            decrypted = self._unpad(cipher.decrypt(encrypted))
+            payload = json.loads(decrypted.decode())
+
+            # Verifica timeout
+            if abs(int(time.time()) - int(payload["timestamp"])) > self.token_timeout:
                 return None
-                
-            return encrypted['data']['message']
-        except:
+
+            return payload["message"]
+        except Exception:
             return None

@@ -1,33 +1,54 @@
-import socket
-from config import ESP32Config
-from utils import get_logger
-
-logger = get_logger("ESP32_UDP")
-
+import usocket as socket
+import uasyncio as asyncio
+import ujson
+from security import SecurityManager
+from config import NetworkConfig
 class UDPCommunicator:
-    def __init__(self, port=ESP32Config.UDP_PORT):
+    def __init__(self):
+        self.port = NetworkConfig.UDP_PORT
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(('', ESP32Config.UDP_PORT))
-        self.sock.settimeout(0.5)
-        self.port = port
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.bind(("0.0.0.0", self.port))
 
-    def send(self, message, ip='255.255.255.255', port=None):
-        try:
-            self.sock.sendto(message.encode(), (ip, port or self.port))
-            logger.debug(f"[UDP] Enviado para {ip}:{port or self.port} -> {message}")
-        except Exception as e:
-            logger.error(f"[UDP] Erro ao enviar: {e}")
+        self.security = SecurityManager(NetworkConfig.AUTH_KEY, NetworkConfig.TOKEN_TIMEOUT)
+        self.running = True
+        self.msg_queue = asyncio.Queue()
 
-    def receive(self):
+    async def start(self):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._listener())
+        await asyncio.sleep(0)  # Ensures the function uses an async feature
+
+    def stop(self):
+        self.running = False
         try:
-            data, addr = self.sock.recvfrom(1024)
-            return data.decode().strip(), addr[0]
-        except OSError as e:
-            if e.args[0] in (110, 116):
-                return None, None
-            logger.error(f"[UDP] Erro receive: {e}")
-            return None, None
+            self.sock.close()
+        except Exception:
+            pass
+        print("UDPCommunicatorESP32 parado")
+
+    async def _listener(self):
+        print("UDP Listener ativo na porta", self.port)
+        while self.running:
+            try:
+                data, addr = self.sock.recvfrom(1024)
+            except OSError:
+                await asyncio.sleep(0.05)
+                continue
+
+            raw_msg = data.decode().strip()
+            msg = self.security.decrypt_message(raw_msg)
+            if not msg:
+                print("Mensagem inválida de", addr)
+                continue
+
+            await self.msg_queue.put((msg, addr))
+
+    def send_message(self, message, ip="255.255.255.255"):
+        try:
+            encrypted = self.security.encrypt_message(message)
+            self.sock.sendto(encrypted.encode(), (ip, self.port))
+            print("[UDP] Enviado para", ip, "->", message)
         except Exception as e:
-            logger.error(f"[UDP] Erro receive: {e}")
-            return None, None
+            print("Erro ao enviar:", e)

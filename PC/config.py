@@ -1,114 +1,48 @@
-import platform
-import serial.tools.list_ports
-import time
+from typing import List
 
-class SystemConfig:
-    # --- Sistema Operacional ---
-    OS_WINDOWS = "Windows"
-    OS_LINUX = "Linux" 
-    OS_MAC = "Darwin"
-    OPERATING_SYSTEM = platform.system()
-    
-    # --- Segurança ---
-    AUTH_KEY = "TR4SH_4I_S3CUR3_K3Y_2024_M4K3DC_D3C0747387"
-    TOKEN_TIMEOUT = 30  # segundos
-    AUTH_TIMEOUT = 5  # Adicionado
-    
-    # --- Tentativas e Timeouts ---
-    RECONNECT_ATTEMPTS = 3
-    DISCOVERY_TIMEOUT = 5
-    HEARTBEAT_INTERVAL = 10
-
-    MAX_RETRIES = 3
-    COMMAND_TIMEOUT = 5
-
-class HardwareConfig:
-    # --- Portas Serial por SO ---
-    @staticmethod
-    def get_serial_port():
-        if SystemConfig.OPERATING_SYSTEM == SystemConfig.OS_WINDOWS:
-            return "COM3"
-        elif SystemConfig.OPERATING_SYSTEM == SystemConfig.OS_LINUX:
-            return "/dev/ttyUSB0"
-        elif SystemConfig.OPERATING_SYSTEM == SystemConfig.OS_MAC:
-            return "/dev/tty.SLAB_USBtoUART"
-        else:
-            return ""
-    
-    # --- Tamanhos de buffer ---
-    BUFFER_SIZE = 1024
-
-class PCConfig:
-    # --- Serial ---
-    SERIAL_BAUDRATE = 115200
-    SERIAL_TIMEOUT = 1
-    SERIAL_WAIT_TIME = 2  # segundos
-    TIME_SERIAL_WAIT = 2  # Adicionado para compatibilidade
-    
+class UDPConfig:    
     # --- UDP ---
     UDP_PORT = 8888
     UDP_BUFFER_SIZE = 1024
     UDP_SOCKET_TIMEOUT = 1.0
-    
-    # --- Descoberta ---
-    DISCOVERY_TIMEOUT = 5
-    DISCOVERY_RETRIES = 3
-    RECONNECT_INTERVAL = 10
-    DISCOVERY_BROADCAST_ADDR = '255.255.255.255'
-    
-    # --- Portas Serial disponíveis ---
-    @staticmethod
-    def get_serial_ports():
-        """Retorna lista de portas serial disponíveis"""
-        ports = []
-        try:
-            available_ports = list(serial.tools.list_ports.comports())
-            for port_info in available_ports:
-                ports.append({
-                    'device': port_info.device,
-                    'description': port_info.description,
-                    'hwid': port_info.hwid
-                })
-        except Exception as e:
-            print(f"Erro ao listar portas serial: {e}")
-        return ports
-    
-    @staticmethod
-    def get_default_serial_port():
-        """Retorna porta serial padrão baseada no SO"""
-        return HardwareConfig.get_serial_port()
+
+    # --- Segurança ---
+    AUTH_KEY = "TR4SH_4I_S3CUR3_K3Y_2024_M4K3DC_D3C0747387"
+    TOKEN_TIMEOUT = 30  # segundos
+    AUTH_TIMEOUT = 5  # Adicionado
 
 class CameraConfig:
-    CAMERA_ID = 0
-    IMAGE_SAVE_DIR = "data/captured"
-    IMAGE_SAVE_PATH = f"{IMAGE_SAVE_DIR}/waste_capture"
-    IMAGE_FORMAT = "jpg"
+    CAMERA_ID: int = 1
+    IMAGE_SAVE_DIR: str = "data/captured"
+    IMAGE_SAVE_PATH: str = f"{IMAGE_SAVE_DIR}/waste_capture"
+    IMAGE_FORMAT: str = "jpg"
     
     # --- Dimensões ---
-    CAPTURE_WIDTH = 1280
-    CAPTURE_HEIGHT = 720
-    PROCESSED_WIDTH = 512
-    PROCESSED_HEIGHT = 384
+    IMAGE_WIDTH: int = 512
+    IMAGE_HEIGHT: int = 384
+    CAPTURE_WIDTH: int = 1280
+    CAPTURE_HEIGHT: int = 720
     
     # --- Processamento ---
-    BLUR_KERNEL = (5, 5)
-    DISPLAY_TIME_MS = 1000
+    DISPLAY_TIME_MS: int = 1000
+    BLUR_KERNEL: tuple = (5, 5)
     
     # --- Captura ---
-    SAVE_IMAGES = True
-    CAMERA_WARMUP_ATTEMPTS = 10
-    CAMERA_WARMUP_DELAY = 0.5  # segundos
+    SAVE_IMAGES: bool = True
+    WEB_CAM_INTERIOR: bool = False
+    CAMERA_WARMUP_ATTEMPTS: int = 10
+    CAMERA_WARMUP_DELAY: float = 0.5
 
 class MLConfig:
     # --- Tipos de Resíduo ---
-    WASTE_TYPES = ["PLASTICO", "PAPEL", "VIDRO", "METAL", "LIXO", "PAPELAO"]
-    
+    WASTE_TYPES: List[str] = ["PAPELAO", "VIDRO", "METAL", "PAPEL", "PLASTICO", "LIXO"]
+        
     # --- Classificação ---
-    CONFIDENCE_THRESHOLD = 0.6
+    CONFIDENCE_THRESHOLD: float = 0.6
     
     # --- Modelo ---
-    MODEL_INPUT_SHAPE = (384, 512, 3)
-    USE_MOCK_MODEL = True
+    MODEL_INPUT_SHAPE = (224, 224, 3)  # Modelo treinado usa 224x224
+    USE_MOCK_MODEL = False  # Agora usa o modelo real
 
 class CommunicationConfig:
     # --- Prefixos de Mensagem ---

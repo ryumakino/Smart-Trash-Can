@@ -1,12 +1,11 @@
-# wifi_manager.py
 import network
 import time
 from config import WiFiConfig
 from utils import get_logger
 
-logger = get_logger("WiFiManager")
+logger = get_logger("WlanManager")
 
-class WiFiManager:
+class WlanManager:
     def __init__(self):
         self.sta_if = network.WLAN(network.STA_IF)
         self.connected = False
@@ -15,15 +14,14 @@ class WiFiManager:
     def connect(self):
         """Conecta ao Wi-Fi"""
         if self.sta_if.isconnected():
-            logger.info("✅ Já conectado ao Wi-Fi")
             self.connected = True
             self.ip = self.sta_if.ifconfig()[0]
             return True
 
-        logger.info(f"📡 Conectando ao Wi-Fi: {WiFiConfig.SSID}")
+        logger.info(f"Conectando ao Wi-Fi: {WiFiConfig.SSID}")
         self.sta_if.active(True)
         
-        for attempt in range(WiFiConfig.MAX_RETRIES):
+        for _ in range(WiFiConfig.MAX_RETRIES):
             try:
                 self.sta_if.connect(WiFiConfig.SSID, WiFiConfig.PASSWORD)
                 
@@ -32,26 +30,32 @@ class WiFiManager:
                     if self.sta_if.isconnected():
                         self.connected = True
                         self.ip = self.sta_if.ifconfig()[0]
-                        logger.success(f"✅ Conectado ao Wi-Fi! IP: {self.ip}")
+                        logger.success(f"Conectado ao Wi-Fi! IP: {self.ip}")
                         return True
                     time.sleep(1)
-                
-                logger.warning(f"⏳ Tentativa {attempt + 1} falhou. Tentando novamente...")
                 time.sleep(WiFiConfig.RETRY_DELAY)
                 
-            except Exception as e:
-                logger.error(f"❌ Erro na conexão Wi-Fi: {e}")
+            except Exception:
                 time.sleep(WiFiConfig.RETRY_DELAY)
 
-        logger.error("❌ Falha ao conectar ao Wi-Fi")
+        logger.error("Não foi possível conectar ao Wi-Fi. Sistema não pode iniciar.")
         return False
 
     def get_ip(self):
         """Retorna o IP atual"""
-        if self.sta_if.isconnected():
-            return self.sta_if.ifconfig()[0]
+        return self.ip
+    
+    def get_network_prefix(self):
+        """Extrai o prefixo da rede do IP (ex: 192.168.1)"""
+        try:
+            parts = self.get_ip.split('.')
+            if len(parts) == 4:
+                return '.'.join(parts[:3])
+        except Exception:
+            pass
+        logger.error("Não foi possível determinar prefixo da rede")
         return None
 
     def is_connected(self):
         """Verifica se está conectado"""
-        return self.sta_if.isconnected()
+        return self.connected
