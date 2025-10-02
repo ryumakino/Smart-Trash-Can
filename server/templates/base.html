@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TrashNet - Dashboard{% endblock %}</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+    <!-- CSS principal -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block scripts %}
+        <!-- Ponto de entrada principal do dashboard -->
+        <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+        <!-- Fallback para navegadores que não suportam ES modules -->
+        <script nomodule>
+            alert("⚠️ Seu navegador não suporta recursos modernos necessários para o Dashboard TrashNet. Atualize para a versão mais recente do Chrome, Edge ou Firefox.");
+        </script>
+    {% endblock %}
+</body>
+</html>

@@ -1,0 +1,35 @@
+<div id="systemInfoModal" class="modal">
+    <div class="modal-content">
+        <h2>ℹ️ Informações do Sistema</h2>
+        <div class="tab-container">
+            <div class="tabs">
+                <div class="tab active" role="tab" tabindex="0"
+                     onclick="switchTab('systemTab')"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){switchTab('systemTab'); event.preventDefault();}">
+                    Sistema
+                </div>
+                <div class="tab" role="tab" tabindex="0"
+                     onclick="switchTab('modelTab')"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){switchTab('modelTab'); event.preventDefault();}">
+                    Modelo
+                </div>
+                <div class="tab" role="tab" tabindex="0"
+                     onclick="switchTab('configTab')"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){switchTab('configTab'); event.preventDefault();}">
+                    Configuração
+                </div>
+            </div>
+
+            <div id="systemTab" class="tab-content active">
+                <div id="systemDetails">Carregando...</div>
+            </div>
+            <div id="modelTab" class="tab-content">
+                <div id="modelDetails">Carregando...</div>
+            </div>
+            <div id="configTab" class="tab-content">
+                <div id="configDetails">Carregando...</div>
+            </div>
+        </div>
+        <button class="btn" onclick="closeModal()" style="width: 100%;">Fechar</button>
+    </div>
+</div>

@@ -1,0 +1,35 @@
+{
+  "DeviceConfig": {
+    "DEVICE_ID": "TRASH_AI_A1B2C3",
+    "DEVICE_NAME": "Lixeira Inteligente",
+    "DEVICE_TYPE": "TRASH_CAN",
+    "DEVICE_LOCATION": "Sala de Reuniões",
+    "DEVICE_VERSION": "1.0.0",
+    "DEVICE_MANUFACTURER": "MAKEDC",
+    "AUTO_GENERATE_ID": true
+  },
+  "WiFiConfig": {
+    "SSID": "MinhaRedeWiFi",
+    "PASSWORD": "minhasenha",
+    "MAX_RETRIES": 3,
+    "RETRY_DELAY": 5,
+    "AP_SSID_PREFIX": "TRASH_AI_",
+    "AP_PASSWORD": "trashai2024",
+    "AP_CHANNEL": 6
+  },
+  "NetworkConfig": {
+    "UDP_PORT": 8888,
+    "BROADCAST_PORT": 8889,
+    "SERVER_IP": "192.168.1.100",
+    "SERVER_PORT": 8888,
+    "AUTO_DISCOVER_SERVER": true,
+    "DISCOVERY_INTERVAL": 30,
+    "AUTH_KEY": "TR4SH_4I_S3CUR3_K3Y_2024_M4K3DC_D3C0747387",
+    "TOKEN_TIMEOUT": 30
+  },
+  "SystemConfig": {
+    "STATUS_LED_PIN": 2,
+    "HEARTBEAT_INTERVAL": 60,
+    "AP_MODE_BLINK_INTERVAL": 2
+  }
+}

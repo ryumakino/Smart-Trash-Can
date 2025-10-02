@@ -1,33 +1,44 @@
+# boot.py - Inicialização segura do ESP32
 import machine
 import time
-import os
+import gc
 
-def boot_sequence():
-    """Sequência de boot simplificada"""
+def setup_hardware():
+    """Configuração inicial do hardware"""
+    # Limpar memória
+    gc.collect()
+    
+    # Configurar frequência da CPU (opcional)
+    # machine.freq(240000000)  # 240MHz
+    
+    # Inicializar LED de status
     led = machine.Pin(2, machine.Pin.OUT)
+    led.off()  # Desligar LED inicialmente
     
-    # Pisca LED para indicar boot
-    for _ in range(3):
-        led.on()
-        time.sleep_ms(200)
-        led.off()
-        time.sleep_ms(200)
+    print("=== ESP32 TRASH AI BOOT ===")
+    print(f"CPU Frequency: {machine.freq() // 1000000}MHz")
+    print(f"Free memory: {gc.mem_free()} bytes")
+    print("Hardware initialized successfully")
     
-    print("=" * 40)
-    print("  ESP32 SMART TRASH CAN")
-    print("=" * 40)
-    
-    # Verifica arquivos essenciais
-    essential_files = ['main.py', 'config.py', 'utils.py']
-    for file in essential_files:
-        try:
-            with open(file, 'r'):
-                print(f"✓ {file} encontrado")
-        except:
-            print(f"✗ {file} não encontrado")
-    
-    print("Sistema pronto!")
-    led.on()  # LED ligado indica sistema pronto
+    return led
 
-if __name__ == "__main__":
-    boot_sequence()
+def main():
+    """Função principal de boot"""
+    try:
+        led = setup_hardware()
+        
+        # Piscar LED indicando boot
+        for _ in range(3):
+            led.on()
+            time.sleep(0.1)
+            led.off()
+            time.sleep(0.1)
+            
+        print("Boot completed - Starting main application...")
+        
+    except Exception as e:
+        print(f"Boot error: {e}")
+        machine.reset()  # Hard reset em caso de falha
+
+if __name__ == '__main__':
+    main()

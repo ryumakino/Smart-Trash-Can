@@ -1,23 +1,29 @@
 from machine import Pin, PWM
 import time
-from config import ServoConfig
+from config_manager import ConfigManager
 from utils import get_logger
 
-logger = get_logger("Servo")
+logger = get_logger("ServoController")
 
 class ServoController:
-    def __init__(self, pin=ServoConfig.SERVO_PIN):
+    def __init__(self, pin=None):
+        self.config_mgr = ConfigManager()
+        servo_config = self.config_mgr.get_servo_config()
+        
+        pin = pin or servo_config.get('SERVO_PIN', 18)
         self.pwm = PWM(Pin(pin))
-        self.pwm.freq(ServoConfig.SERVO_FREQ)
+        self.pwm.freq(servo_config.get('SERVO_FREQ', 50))
         self.current_angle = 90
+        self.servo_config = servo_config
         self.move(90)  # Posição neutra
         logger.info("Servo inicializado")
     
     def angle_to_duty(self, angle):
         """Converte ângulo para duty cycle"""
         angle = max(0, min(180, angle))
-        return int(ServoConfig.SERVO_MIN_DUTY + 
-                  (angle / 180) * (ServoConfig.SERVO_MAX_DUTY - ServoConfig.SERVO_MIN_DUTY))
+        min_duty = self.servo_config.get('SERVO_MIN_DUTY', 40)
+        max_duty = self.servo_config.get('SERVO_MAX_DUTY', 115)
+        return int(min_duty + (angle / 180) * (max_duty - min_duty))
     
     def move(self, angle):
         """Move servo para ângulo específico"""
@@ -33,22 +39,25 @@ class ServoController:
     def waste_angles(self, waste_index: int):
         """Move o servo de acordo com o índice do resíduo, evitando movimentos repetidos"""
         try:
+            servo_angles = self.servo_config.get('SERVO_ANGLES', [0, 30, 60, 90, 120, 150])
+            waste_types = self.servo_config.get('WASTE_TYPES', ["PLASTICO", "PAPEL", "VIDRO", "METAL", "LIXO", "PAPELAO"])
+            
             # Verifica se o índice é válido
-            if waste_index < 0 or waste_index >= len(ServoConfig.SERVO_ANGLES):
+            if waste_index < 0 or waste_index >= len(servo_angles):
                 logger.error(f"Índice inválido para resíduo: {waste_index}")
                 return
 
             # Verifica se já estamos no mesmo tipo de resíduo
             if hasattr(self, "last_waste_index") and self.last_waste_index == waste_index:
-                logger.info(f"Resíduo {ServoConfig.WASTE_TYPES[waste_index]} já selecionado. Servo não será movido.")
+                logger.info(f"Resíduo {waste_types[waste_index]} já selecionado. Servo não será movido.")
                 return
 
-            angle = ServoConfig.SERVO_ANGLES[waste_index]
-            waste_name = ServoConfig.WASTE_TYPES[waste_index]
+            angle = servo_angles[waste_index]
+            waste_name = waste_types[waste_index]
 
             logger.info(f"Movendo servo para {waste_name} (ângulo: {angle})")
             self.move(angle)
-            time.sleep(ServoConfig.SERVO_RESET_DELAY)
+            time.sleep(self.servo_config.get('SERVO_RESET_DELAY', 3))
             self.reset()
             logger.success(f"Servo resetado após movimentar {waste_name}")
 
