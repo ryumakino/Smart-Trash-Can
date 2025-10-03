@@ -1,4 +1,4 @@
-# error_handler.py - Tratamento robusto de erros
+# error_handler.py
 import uasyncio as asyncio
 from utils import get_logger
 
@@ -13,21 +13,21 @@ class ErrorHandler:
         for attempt in range(max_retries):
             try:
                 result = await coroutine
-                self.recovery.reset_counter()  # Reset em caso de sucesso
+                self.recovery.reset_counter()
                 return result
                 
             except asyncio.CancelledError:
                 logger.info(f"Operation cancelled: {operation_name}")
-                raise  # Re-raise cancelled errors
+                raise
                 
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1} failed for {operation_name}: {e}")
                 
-                if attempt == max_retries - 1:  # Última tentativa
+                if attempt == max_retries - 1:
                     self.recovery.record_failure(f"{operation_name}: {str(e)}")
                     return None
                     
-                await asyncio.sleep(1 * (attempt + 1))  # Backoff exponencial
+                await asyncio.sleep(1 * (attempt + 1))
         
         return None
     

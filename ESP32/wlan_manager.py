@@ -1,4 +1,4 @@
-# wlan_manager.py - Gerenciador WiFi simplificado usando utilitários
+# wlan_manager.py
 import network
 import time
 from utils import get_logger
@@ -7,6 +7,8 @@ from network_utils import NetworkInfoBuilder, WiFiConnectionManager, APManager, 
 logger = get_logger("WlanManager")
 
 class WlanManager:
+    """Gerenciador WiFi simplificado usando utilitários"""
+    
     def __init__(self, device_manager):
         self.device_manager = device_manager
         self.config_mgr = device_manager.get_config_manager()
@@ -17,6 +19,7 @@ class WlanManager:
         self.connected = False
         self.ip = None
         self.ap_mode = False
+        self.connection_attempts = 0
 
     def connect(self):
         """Conecta ao Wi-Fi ou cria Access Point se falhar"""
@@ -56,6 +59,8 @@ class WlanManager:
             logger.error("SSID ou senha não configurados")
             return False
 
+        self.connection_attempts += 1
+        
         success = WiFiConnectionManager.attempt_connection(
             self.sta_if, 
             ssid, 
@@ -68,6 +73,7 @@ class WlanManager:
             self.connected = True
             self.ip = self.sta_if.ifconfig()[0]
             NetworkStatusUpdater.update_wifi_status(self.config_mgr, self.sta_if, self.wifi_config)
+            logger.success(f"Conectado ao WiFi após {self.connection_attempts} tentativa(s)")
         
         return success
 
@@ -107,3 +113,15 @@ class WlanManager:
 
     def is_ap_mode(self):
         return self.ap_mode
+    
+    def get_connection_info(self):
+        """Obter informações detalhadas da conexão"""
+        return {
+            'connected': self.connected,
+            'ap_mode': self.ap_mode,
+            'ip': self.ip,
+            'ssid': self.wifi_config.get('SSID'),
+            'connection_attempts': self.connection_attempts,
+            'sta_active': self.sta_if.active(),
+            'ap_active': self.ap_if.active()
+        }

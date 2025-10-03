@@ -18,7 +18,7 @@
     "AP_CHANNEL": 6
   },
   "NetworkConfig": {
-    "UDP_PORT": 8888,
+    "UDP_PORT": 8889,
     "BROADCAST_PORT": 8889,
     "SERVER_IP": "192.168.1.100",
     "SERVER_PORT": 8888,

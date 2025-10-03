@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}TrashNet - Dashboard Completo{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>🚮 TrashNet - Sistema Inteligente de Classificação de Resíduos</h1>
+        <p>Monitoramento em tempo real • IA para um mundo mais sustentável</p>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card">
+            <h2>📈 Status do Sistema</h2>
+            <div id="systemStatus">Carregando...</div>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalClassifications">0</div>
+                    <div class="stat-label">Total de Classificações</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="uptime">0h 0m</div>
+                    <div class="stat-label">Tempo de Atividade</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="avgConfidence">0%</div>
+                    <div class="stat-label">Confiança Média</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h2>⚡ Controles Rápidos</h2>
+            <div style="text-align: center;">
+                <button class="btn btn-success" onclick="classifyNow()">🎯 Classificar Agora</button>
+                <button class="btn" onclick="loadData()">🔄 Atualizar Dados</button>
+                <button class="btn btn-warning" onclick="showSystemInfo()">ℹ️ Informações do Sistema</button>
+            </div>
+            <div id="connectionStatus" style="margin-top: 15px; padding: 10px; border-radius: 8px; background: #f8f9fa;">
+                Status: Verificando...
+            </div>
+        </div>
+
+        <!-- Card de Distribuição por Classe -->
+        <div class="card">
+            <h2>📊 Distribuição por Tipo</h2>
+            <div class="chart-container">
+                <canvas id="classDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Card de Performance Temporal -->
+        <div class="card">
+            <h2>📈 Atividade por Hora (24h)</h2>
+            <div class="chart-container">
+                <canvas id="hourlyActivityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">🕒 Classificações Recentes</h2>
+            <button class="btn" onclick="toggleAutoRefresh()" id="autoRefreshBtn">
+                🔄 Auto-Atualizar: Ligado
+            </button>
+        </div>
+        <div id="classificationsList">Carregando...</div>
+    </div>
+
+    <div class="card">
+        <h2>📏 Distribuição de Confiança</h2>
+        <div class="chart-container">
+            <canvas id="confidenceDistributionChart"></canvas>
+        </div>
+    </div>
+
+    <div id="systemInfoModal" class="modal">
+        <div class="modal-content">
+            <h2>ℹ️ Informações do Sistema</h2>
+            <div class="tab-container">
+                <div class="tabs">
+                    <div class="tab active" role="tab" tabindex="0"
+                        onclick="switchTab('systemTab')"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){switchTab('systemTab'); event.preventDefault();}">
+                        Sistema
+                    </div>
+                    <div class="tab" role="tab" tabindex="0"
+                        onclick="switchTab('modelTab')"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){switchTab('modelTab'); event.preventDefault();}">
+                        Modelo
+                    </div>
+                    <div class="tab" role="tab" tabindex="0"
+                        onclick="switchTab('configTab')"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){switchTab('configTab'); event.preventDefault();}">
+                        Configuração
+                    </div>
+                </div>
+
+                <div id="systemTab" class="tab-content active">
+                    <div id="systemDetails">Carregando...</div>
+                </div>
+                <div id="modelTab" class="tab-content">
+                    <div id="modelDetails">Carregando...</div>
+                </div>
+                <div id="configTab" class="tab-content">
+                    <div id="configDetails">Carregando...</div>
+                </div>
+            </div>
+            <button class="btn" onclick="closeModal()" style="width: 100%;">Fechar</button>
+        </div>
+    </div>
+{% endblock %}
+

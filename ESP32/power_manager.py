@@ -1,4 +1,3 @@
-# power_manager.py - Gerenciamento de energia
 import machine
 import time
 from utils import get_logger
