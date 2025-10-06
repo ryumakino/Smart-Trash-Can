@@ -15,11 +15,6 @@ class DeviceManager:
         self.config_mgr = ConfigManager(config_filename)
         self.device_info = {}
         self.network_status = {}
-        self.system_metrics = {
-            'startup_time': time.time(),
-            'reset_count': 0,
-            'last_health_check': 0
-        }
         self._initialize_device()
     
     def _initialize_device(self):

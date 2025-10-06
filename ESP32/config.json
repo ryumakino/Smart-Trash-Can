@@ -18,8 +18,8 @@
     "AP_CHANNEL": 6
   },
   "NetworkConfig": {
-    "UDP_PORT": 8889,
-    "BROADCAST_PORT": 8889,
+    "UDP_PORT": 8888,
+    "BROADCAST_PORT": 8888,
     "SERVER_IP": "192.168.1.100",
     "SERVER_PORT": 8888,
     "AUTO_DISCOVER_SERVER": true,
@@ -30,6 +30,45 @@
   "SystemConfig": {
     "STATUS_LED_PIN": 2,
     "HEARTBEAT_INTERVAL": 60,
-    "AP_MODE_BLINK_INTERVAL": 2
+    "AP_MODE_BLINK_INTERVAL": 2,
+    "LOG_LEVEL": "INFO",
+    "MEMORY_CRITICAL": 4000,
+    "MEMORY_WARNING": 8000,
+    "GC_THRESHOLD": 20000
+  },
+  "ServoConfig": {
+    "SERVO_PIN": 18,
+    "SERVO_FREQ": 50,
+    "SERVO_MIN_DUTY": 40,
+    "SERVO_MAX_DUTY": 115,
+    "SERVO_RESET_DELAY": 3,
+    "SERVO_ANGLES": [0, 45, 90, 135, 180],
+    "WASTE_TYPES": ["Repouso", "Plástico", "Papel", "Metal", "Vidro"]
+  },
+  "IRSensorConfig": {
+    "IR_SENSOR_PIN": 34,
+    "ACTIVE_HIGH": true,
+    "CHECK_INTERVAL": 0.1,
+    "DETECTION_THRESHOLD": 2
+  },
+  "ErrorHandlingConfig": {
+    "MAX_RETRIES": 3,
+    "BASE_RETRY_DELAY": 1,
+    "MAX_RETRY_DELAY": 30,
+    "MAX_FAILURES_BEFORE_RECOVERY": 5,
+    "FAILURE_TIMEOUT": 300
+  },
+  "PowerConfig": {
+    "SLEEP_ENABLED": true,
+    "LIGHT_SLEEP_INTERVAL": 5,
+    "DEEP_SLEEP_INTERVAL": 60,
+    "NETWORK_SCAN_INTERVAL": 10
+  },
+  "HealthCheckConfig": {
+    "HEALTH_CHECK_INTERVAL": 60,
+    "MEMORY_WARNING_PERCENT": 70,
+    "MEMORY_CRITICAL_PERCENT": 85,
+    "UPTIME_WARNING_SECONDS": 86400,
+    "UPTIME_CRITICAL_SECONDS": 604800
   }
 }
