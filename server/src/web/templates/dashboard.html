@@ -107,5 +107,28 @@
             <button class="btn" onclick="closeModal()" style="width: 100%;">Fechar</button>
         </div>
     </div>
+
+    <!-- Card de Dispositivos ESP32 -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">📱 Dispositivos ESP32</h2>
+            <div>
+                <button class="btn btn-small" onclick="deviceManager.toggleAutoRefresh()" id="esp32AutoRefresh">
+                    🔄 Auto
+                </button>
+                <button class="btn btn-small btn-success" onclick="deviceManager.sendDiscovery()">
+                    🔍 Descobrir
+                </button>
+            </div>
+        </div>
+        
+        <div id="esp32ServerStats" style="margin-bottom: 15px;">
+            <!-- Estatísticas do servidor serão inseridas aqui -->
+        </div>
+        
+        <div id="esp32DevicesContainer" class="devices-grid">
+            <!-- Dispositivos serão inseridos aqui -->
+        </div>
+    </div>
 {% endblock %}
 

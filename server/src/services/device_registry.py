@@ -6,156 +6,167 @@ from src.core.base_classes import BaseService, ConfigurableMixin
 
 class DeviceRegistry(BaseService, ConfigurableMixin):
     def __init__(self):
-        # Chamar construtor do BaseService com a seção de configuração
-        super().__init__('device')
-        self.devices = {}
-        self.lock = threading.Lock()
-        self.device_timeout = 300  # Valor padrão
-    
-    def initialize(self):
-        """Inicializar registro de dispositivos"""
-        if self._initialized:
-            return True
-            
-        try:
-            # Configurar valores específicos da configuração
-            self.device_timeout = self.get_config_value('DEVICE_TIMEOUT', 300)
-            
-            # Configurar logger apropriado
-            self.setup_logger()
-            
-            self._initialized = True
-            self.logger.success("✅ DeviceRegistry inicializado")
-            return True
-        except Exception as e:
-            self.logger.error(f"❌ Erro na inicialização: {e}")
-            return False
-    
+        self.connected_devices = {}  # device_id -> device_info
+        self.device_lock = threading.Lock()
+        self.heartbeat_timeout = 300  # 5 minutos
+        
     def register_device(self, device_info, ip_address):
-        with self.lock:
-            device_id = device_info.get('device_id')
+        """Registrar ou atualizar dispositivo"""
+        device_id = device_info.get('device_id')
+        if not device_id:
+            return False
             
-            if not device_id:
-                self.logger.error("Tentativa de registrar dispositivo sem ID")
-                return False
-            
-            is_new = device_id not in self.devices
-            
-            self.devices[device_id] = {
+        with self.device_lock:
+            self.connected_devices[device_id] = {
                 **device_info,
                 'ip_address': ip_address,
-                'last_seen': datetime.now(),
                 'connected': True,
-                'connection_time': datetime.now(),
-                'heartbeat_count': self.devices.get(device_id, {}).get('heartbeat_count', 0) + 1
+                'last_seen': time.time(),
+                'first_seen': time.time(),
+                'message_count': 0
             }
-            
-            if is_new:
-                self.logger.success(f"Novo dispositivo registrado: {device_info.get('device_name')} ({device_id})")
-            else:
-                self.logger.info(f"Dispositivo atualizado: {device_info.get('device_name')} ({device_id})")
-            
-            return True
+        return True
     
-    def update_heartbeat(self, device_id):
+    def update_heartbeat(self, device_id, heartbeat_data=None):
         """Atualizar heartbeat do dispositivo"""
-        with self.lock:
-            if device_id in self.devices:
-                self.devices[device_id]['last_seen'] = datetime.now()
-                self.devices[device_id]['heartbeat_count'] += 1
-                self.devices[device_id]['connected'] = True
+        with self.device_lock:
+            if device_id in self.connected_devices:
+                self.connected_devices[device_id]['last_seen'] = time.time()
+                self.connected_devices[device_id]['message_count'] += 1
+                
+                if heartbeat_data:
+                    # Atualizar informações adicionais do heartbeat
+                    self.connected_devices[device_id].update({
+                        'last_heartbeat': time.time(),
+                        'uptime': heartbeat_data.get('uptime'),
+                        'memory_free': heartbeat_data.get('memory_free'),
+                        'network_mode': heartbeat_data.get('network_mode', 'UNKNOWN')
+                    })
                 return True
-            return False
+        return False
     
     def get_device(self, device_id):
-        """Obter informações do dispositivo"""
-        with self.lock:
-            return self.devices.get(device_id)
+        """Obter informações de um dispositivo específico"""
+        with self.device_lock:
+            return self.connected_devices.get(device_id, {}).copy()
     
     def get_all_devices(self):
         """Obter todos os dispositivos"""
-        with self.lock:
-            return self.devices.copy()
+        with self.device_lock:
+            return self.connected_devices.copy()
     
     def get_connected_devices(self):
         """Obter apenas dispositivos conectados"""
-        with self.lock:
-            current_time = datetime.now()
-            connected_devices = {}
-            
-            for device_id, device_info in self.devices.items():
-                last_seen = device_info.get('last_seen')
-                if last_seen and (current_time - last_seen).total_seconds() < self.device_timeout:
-                    connected_devices[device_id] = device_info
-            
-            return connected_devices
+        with self.device_lock:
+            return {did: info for did, info in self.connected_devices.items() 
+                   if info.get('connected', False)}
     
     def disconnect_device(self, device_id):
-        """Desconectar dispositivo"""
-        with self.lock:
-            if device_id in self.devices:
-                self.devices[device_id]['connected'] = False
-                self.logger.info(f"Dispositivo desconectado: {device_id}")
+        """Marcar dispositivo como desconectado"""
+        with self.device_lock:
+            if device_id in self.connected_devices:
+                self.connected_devices[device_id]['connected'] = False
                 return True
-            return False
+        return False
     
     def remove_device(self, device_id):
-        """Remover dispositivo do registro"""
-        with self.lock:
-            if device_id in self.devices:
-                device_name = self.devices[device_id].get('device_name')
-                del self.devices[device_id]
-                self.logger.info(f"Dispositivo removido: {device_name} ({device_id})")
+        """Remover dispositivo completamente"""
+        with self.device_lock:
+            if device_id in self.connected_devices:
+                del self.connected_devices[device_id]
                 return True
-            return False
+        return False
     
-    def cleanup_expired_devices(self):
-        """Limpar dispositivos expirados"""
-        with self.lock:
-            current_time = datetime.now()
-            expired_devices = []
-            
-            for device_id, device_info in self.devices.items():
-                last_seen = device_info.get('last_seen')
-                if last_seen and (current_time - last_seen).total_seconds() > self.device_timeout:
-                    expired_devices.append(device_id)
-            
-            for device_id in expired_devices:
-                device_name = self.devices[device_id].get('device_name')
-                del self.devices[device_id]
-                self.logger.info(f"Dispositivo expirado removido: {device_name} ({device_id})")
-            
-            return len(expired_devices)
-    
+    def broadcast_message(self, devices, message):
+        """Enviar mensagem para múltiplos dispositivos"""
+        successful = []
+        failed = []
+        
+        for device_id in devices:
+            device_info = self.get_device(device_id)
+            if device_info and device_info.get('connected'):
+                successful.append(device_id)
+            else:
+                failed.append(device_id)
+        
+        return {
+            'successful': successful,
+            'failed': failed,
+            'total': len(devices)
+        }
+
+    def get_devices_by_network_mode(self, network_mode):
+        """Obter dispositivos por modo de rede (STA_MODE, AP_MODE)"""
+        return {
+            device_id: device_info 
+            for device_id, device_info in self.connected_devices.items() 
+            if device_info.get('network_mode') == network_mode
+        }
+
+    def get_connected_devices(self):
+        """Obter apenas dispositivos conectados"""
+        return {
+            device_id: device_info 
+            for device_id, device_info in self.connected_devices.items() 
+            if device_info.get('connected', False)
+        }
+
+    def get_all_devices(self):
+        """Obter todos os dispositivos"""
+        return self.connected_devices.copy()
+
+    def update_device_metadata(self, device_id, metadata):
+        """Atualizar metadados do dispositivo"""
+        if device_id in self.connected_devices:
+            if 'metadata' not in self.connected_devices[device_id]:
+                self.connected_devices[device_id]['metadata'] = {}
+            self.connected_devices[device_id]['metadata'].update(metadata)
+            return True
+        return False
+
+    def get_devices_with_metadata(self, key, value):
+        """Obter dispositivos com metadado específico"""
+        result = {}
+        for device_id, device_info in self.connected_devices.items():
+            metadata = device_info.get('metadata', {})
+            if metadata.get(key) == value:
+                result[device_id] = device_info
+        return result
+
     def get_device_stats(self):
         """Obter estatísticas dos dispositivos"""
-        with self.lock:
-            current_time = datetime.now()
-            connected_count = 0
-            device_list = []
-            
-            for device_id, info in self.devices.items():
-                last_seen = info.get('last_seen')
-                is_connected = last_seen and (current_time - last_seen).total_seconds() < self.device_timeout
-                
-                if is_connected:
-                    connected_count += 1
-                
-                device_list.append({
-                    'device_id': device_id,
-                    'device_name': info.get('device_name', 'Unknown'),
-                    'device_type': info.get('device_type', 'Unknown'),
-                    'location': info.get('location', 'Unknown'),
-                    'ip_address': info.get('ip_address'),
-                    'connected': is_connected,
-                    'last_seen': info.get('last_seen').isoformat() if info.get('last_seen') else 'Never',
-                    'connection_duration': str(current_time - info.get('connection_time', current_time)) if info.get('connection_time') else 'Unknown',
-                    'heartbeat_count': info.get('heartbeat_count', 0)
-                })
-            
-            return {
-                'total_devices': len(self.devices),
-                'connected_devices': connected_count,
-                'disconnected_devices': len(self.devices) - connected_count,
-                'device_list': device_list
-            }
+        total_devices = len(self.connected_devices)
+        connected_devices = len(self.get_connected_devices())
+        sta_devices = len(self.get_devices_by_network_mode('STA_MODE'))
+        ap_devices = len(self.get_devices_by_network_mode('AP_MODE'))
+        
+        return {
+            'total_devices': total_devices,
+            'connected_devices': connected_devices,
+            'sta_devices': sta_devices,
+            'ap_devices': ap_devices,
+            'unknown_network': total_devices - (sta_devices + ap_devices)
+        }
+
+    def cleanup_expired_devices(self, timeout_seconds=300):
+        """Limpar dispositivos expirados (5 minutos padrão)"""
+        current_time = time.time()
+        expired_devices = []
+        
+        for device_id, device_info in list(self.connected_devices.items()):
+            last_seen = device_info.get('last_seen', 0)
+            if current_time - last_seen > timeout_seconds:
+                expired_devices.append(device_id)
+                del self.connected_devices[device_id]
+        
+        return expired_devices 
+    
+    def cleanup_disconnected_devices(self, timeout_seconds=None):
+        """Compatibilidade: limpar dispositivos desconectados/expirados"""
+        if timeout_seconds is None:
+            timeout_seconds = self.heartbeat_timeout
+        return self.cleanup_expired_devices(timeout_seconds)
+
+    def get_ap_mode_devices(self):
+        """Compatibilidade: retornar apenas dispositivos em AP_MODE"""
+        return self.get_devices_by_network_mode('AP_MODE')

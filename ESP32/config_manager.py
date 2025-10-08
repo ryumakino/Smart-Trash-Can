@@ -1,4 +1,4 @@
-# config_manager.py
+# config_manager.py - CORREÇÕES COMPLETAS
 import ujson as json
 import os
 from utils import get_logger
@@ -6,56 +6,35 @@ from utils import get_logger
 logger = get_logger("ConfigManager")
 
 class ConfigValidator:
-    """SRP: Responsável apenas por validação"""
+    @staticmethod
+    def validate_section(section_data, schema):
+        return bool(section_data and schema)
     
     @staticmethod
-    def validate_section(section_name, section_data, schema):
-        """Validar seção específica"""
-        required_fields = schema.get('required', [])
-        missing_fields = [field for field in required_fields if field not in section_data]
-        
-        if missing_fields:
-            logger.warning(f"Seção {section_name} faltando campos: {missing_fields}")
-            return False
-        return True
-    
-    @staticmethod
-    def validate_updates(section_name, updates):
-        """Validar updates básicos"""
+    def validate_updates(updates):
         for key, value in updates.items():
-            if isinstance(value, str) and len(value.strip()) == 0:
-                raise ValueError(f"Valor vazio para {key}")
-            if value is None:
-                raise ValueError(f"Valor None para {key}")
+            # CORREÇÃO: MicroPython não tem strip() para não-strings
+            if value is None or (isinstance(value, str) and not value.strip()):
+                raise ValueError(f"Valor inválido para {key}")
         return True
 
-class ConfigCache:
-    """SRP: Gerenciamento de cache"""
+class ConfigLoader:
+    @staticmethod
+    def load_from_file(filename):
+        # CORREÇÃO: Verificação de arquivo mais robusta
+        try:
+            with open(filename, 'r') as f:
+                return json.load(f)
+        except OSError:
+            raise OSError(f"{filename} não encontrado")
+        except Exception as e:
+            raise OSError(f"Erro ao ler {filename}: {e}")
     
-    def __init__(self):
-        self._cache = {}
-    
-    def get(self, key):
-        return self._cache.get(key)
-    
-    def set(self, key, value):
-        self._cache[key] = value
-    
-    def invalidate(self, key=None):
-        if key:
-            self._cache.pop(key, None)
-        else:
-            self._cache.clear()
-    
-    def get_stats(self):
-        return {
-            'size': len(self._cache),
-            'keys': list(self._cache.keys())
-        }
+    @staticmethod
+    def create_default(schema):
+        return {section: schema.copy() for section, schema in schema.items()}
 
 class ConfigManager:
-    """Classe principal - OCP: Aberta para extensão, fechada para modificação"""
-    
     CONFIG_SCHEMA = {
         "DeviceConfig": {
             "DEVICE_ID": "TRASH_AI_A1B2C3",
@@ -134,160 +113,63 @@ class ConfigManager:
     def __init__(self, filename='config.json'):
         self.filename = filename
         self.validator = ConfigValidator()
-        self.cache = ConfigCache()
-        self._load_count = 0
+        self.loader = ConfigLoader()
         self.config = {}
-        self.load_config()
+        self._initialize_config()
     
-    def load_config(self):
-        """Carregar configuração - SRP"""
+    def _initialize_config(self):
         try:
-            if self.filename in os.listdir():
-                with open(self.filename, 'r') as f:
-                    loaded_config = json.load(f)
-                
-                self.config = self._apply_defaults_and_validate(loaded_config)
-                self._load_count += 1
-                self.cache.invalidate()
-                
-                logger.info(f"Config carregada (vez #{self._load_count})")
-                return self.config
-            else:
-                raise FileNotFoundError(f"{self.filename} não encontrado")
-                
+            loaded_config = self.loader.load_from_file(self.filename)
+            self.config = self._apply_defaults(loaded_config)
+            logger.info("Configuração carregada do arquivo")
+        except OSError as e:
+            logger.warning(f"Criando config padrão: {e}")
+            self.config = self.loader.create_default(self.CONFIG_SCHEMA)
+            self._save_config()
         except Exception as e:
-            logger.error(f"Erro ao carregar: {e}")
-            self.config = self._create_default_config()
-            raise
+            logger.error(f"Erro ao carregar configuração: {e}")
+            self.config = self.loader.create_default(self.CONFIG_SCHEMA)
     
-    def _apply_defaults_and_validate(self, config_dict):
-        """Aplicar defaults e validar - DRY"""
-        validated_config = {}
+    def _apply_defaults(self, loaded_config):
+        config_with_defaults = {}
         
         for section_name, section_schema in self.CONFIG_SCHEMA.items():
-            section_data = config_dict.get(section_name, {})
-            defaults = section_schema.get('defaults', {})
+            section_data = loaded_config.get(section_name, {})
+            merged_section = section_schema.copy()
             
-            # DRY: Aplicar defaults uma única vez
-            validated_section = {**defaults, **section_data}
-            validated_config[section_name] = validated_section
+            # CORREÇÃO: Atualizar apenas chaves existentes no schema
+            for key, value in section_data.items():
+                if key in merged_section:
+                    merged_section[key] = value
             
-            # Validar
-            self.validator.validate_section(section_name, validated_section, section_schema)
+            config_with_defaults[section_name] = merged_section
         
-        return validated_config
+        return config_with_defaults
     
     def get_section(self, section_name):
-        """Obter seção com cache - DRY"""
-        cache_key = f"section_{section_name}"
-        cached = self.cache.get(cache_key)
-        
-        if cached is not None:
-            return cached
-        
-        section_data = self.config.get(section_name, {})
-        
-        # Aplicar defaults se necessário
-        if section_name in self.CONFIG_SCHEMA:
-            defaults = self.CONFIG_SCHEMA[section_name].get('defaults', {})
-            section_data = {**defaults, **section_data}
-        
-        self.cache.set(cache_key, section_data)
-        return section_data
+        return self.config.get(section_name, {}).copy()
     
     def get_value(self, section_name, key, default=None):
-        """Obter valor específico - DRY"""
-        cache_key = f"value_{section_name}_{key}"
-        cached = self.cache.get(cache_key)
-        
-        if cached is not None:
-            return cached
-        
         section = self.get_section(section_name)
-        value = section.get(key, default)
-        
-        self.cache.set(cache_key, value)
-        return value
+        return section.get(key, default)
     
     def update_section(self, section_name, updates):
-        """Atualizar seção - SRP"""
         try:
-            self.validator.validate_updates(section_name, updates)
-            
+            self.validator.validate_updates(updates)
             current_section = self.get_section(section_name)
-            updated_section = {**current_section, **updates}
-            self.config[section_name] = updated_section
-            
-            # Invalidar cache relacionado
-            self._invalidate_section_cache(section_name)
-            
+            current_section.update(updates)
+            self.config[section_name] = current_section
             return self._save_config()
-            
         except Exception as e:
             logger.error(f"Erro ao atualizar {section_name}: {e}")
             return False
     
-    def _invalidate_section_cache(self, section_name):
-        """Invalidar cache da seção - DRY"""
-        keys_to_remove = [
-            k for k in self.cache._cache.keys()
-            if k.startswith(f"section_{section_name}") or k.startswith(f"value_{section_name}")
-        ]
-        for key in keys_to_remove:
-            self.cache.invalidate(key)
-    
     def _save_config(self):
-        """Salvar configuração - SRP"""
         try:
-            # Criar backup se arquivo existir
-            if self.filename in os.listdir():
-                backup_name = f"{self.filename}.backup"
-                with open(self.filename, 'r') as original:
-                    with open(backup_name, 'w') as backup:
-                        backup.write(original.read())
-            
-            # Salvar nova configuração
             with open(self.filename, 'w') as f:
-                json.dump(self.config, f, indent=2)
-            
-            logger.info("Configuração salva")
+                json.dump(self.config, f)
+            logger.info("Configuração salva com sucesso")
             return True
-            
         except Exception as e:
-            logger.error(f"Erro ao salvar: {e}")
+            logger.error(f"Erro ao salvar configuração: {e}")
             return False
-    
-    def _create_default_config(self):
-        """Criar configuração padrão - SRP"""
-        logger.warning("Criando configuração padrão")
-        return {
-            section: schema.get('defaults', {}).copy()
-            for section, schema in self.CONFIG_SCHEMA.items()
-        }
-    
-    # ISP: Interfaces específicas em vez de uma geral
-    def get_device_config(self):
-        return self.get_section('DeviceConfig')
-    
-    def get_wifi_config(self):
-        return self.get_section('WiFiConfig')
-    
-    def get_network_config(self):
-        return self.get_section('NetworkConfig')
-    
-    def get_system_config(self):
-        return self.get_section('SystemConfig')
-    
-    def get_servo_config(self):
-        return self.get_section('ServoConfig')
-    
-    def get_ir_config(self):
-        return self.get_section('IRSensorConfig')
-    
-    def get_stats(self):
-        """Estatísticas do gerenciador"""
-        return {
-            'load_count': self._load_count,
-            'cache_stats': self.cache.get_stats(),
-            'sections_loaded': list(self.config.keys())
-        }

@@ -259,3 +259,181 @@ body {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Estilos para dispositivos ESP32 */
+.devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.device-card {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    border-left: 4px solid #7f8c8d;
+    transition: all 0.3s ease;
+}
+
+.device-card.status-online {
+    border-left-color: #27ae60;
+    background: #f0fff4;
+}
+
+.device-card.status-warning {
+    border-left-color: #f39c12;
+    background: #fffaf0;
+}
+
+.device-card.status-offline {
+    border-left-color: #e74c3c;
+    background: #fff5f5;
+}
+
+.device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.device-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+    color: #2c3e50;
+}
+
+.device-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.device-status.status-online { background: #27ae60; }
+.device-status.status-warning { background: #f39c12; }
+.device-status.status-offline { background: #e74c3c; }
+
+.device-info {
+    margin-bottom: 15px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.info-row label {
+    font-weight: bold;
+    color: #7f8c8d;
+}
+
+.device-id {
+    font-family: monospace;
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+.network-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.network-badge.sta_mode { background: #3498db; color: white; }
+.network-badge.ap_mode { background: #9b59b6; color: white; }
+
+.device-actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.8em;
+}
+
+.server-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    background: #e9ecef;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.server-stats .stat {
+    text-align: center;
+}
+
+.server-stats .stat-value {
+    display: block;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.server-stats .stat-label {
+    font-size: 0.8em;
+    color: #7f8c8d;
+}
+
+.no-devices {
+    text-align: center;
+    padding: 30px;
+    color: #7f8c8d;
+}
+
+.waste-menu {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.waste-btn {
+    padding: 12px;
+    border: 2px solid #3498db;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1em;
+}
+
+.waste-btn:hover {
+    background: #3498db;
+    color: white;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}

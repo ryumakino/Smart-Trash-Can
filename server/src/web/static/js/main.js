@@ -1,6 +1,7 @@
 import { loadData, classifyNow } from "./api.js";
 import { initializeCharts, updateCharts } from "./charts.js";
 import { showNotification, showLoading, hideLoading, showError, showSystemInfo, closeModal } from "./ui.js";
+import { ESP32DeviceManager } from './devices.js';
 
 let isAutoRefresh = true;
 let autoRefreshInterval = null;
@@ -12,6 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeCharts();
     refresh();
     startAutoRefresh();
+
+    // Inicializar gerenciador de dispositivos
+    window.deviceManager = new ESP32DeviceManager();
+    deviceManager.loadDevices();
+    deviceManager.startAutoRefresh();
 
     document.getElementById("autoRefreshBtn").addEventListener("click", toggleAutoRefresh);
     window.showSystemInfo = showSystemInfo;
