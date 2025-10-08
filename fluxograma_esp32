@@ -1,0 +1,138 @@
+flowchart TD
+    A[Inicialização do ESP32] --> B[boot.py]
+    B --> C{Validação de Hardware}
+    C --> D[Memória RAM]
+    C --> E[Sistema de Arquivos]
+    C --> F[CPU e Reset Cause]
+    
+    D --> G{Validação OK?}
+    E --> G
+    F --> G
+    
+    G -->|Sim| H[Otimização do Sistema]
+    H --> I[Configurar Frequência CPU]
+    H --> J[Coleta de Lixo]
+    H --> K[LED Boot Sucesso]
+    
+    G -->|Não| L[LED Boot Erro]
+    L --> M{Tentativas < 3?}
+    M -->|Sim| N[Aguardar 5s]
+    N --> B
+    M -->|Não| O[Recuperação Emergencial]
+    O --> P[Soft Reset]
+    P --> Q{Hard Reset}
+    
+    K --> R[main.py]
+    R --> S[ESP32System]
+    S --> T[DeviceManager]
+    S --> U[HardwareManager]
+    S --> V[WlanManager]
+    
+    T --> W[ConfigManager]
+    W --> X[Carregar config.json]
+    
+    U --> Y[LEDController]
+    U --> Z[IRSensor]
+    U --> AA[ServoController]
+    
+    V --> AB[STA Interface]
+    V --> AC[AP Interface]
+    
+    AB --> AD{Conectar WiFi?}
+    AD -->|Sim| AE[Conexão WiFi]
+    AE --> AF{Sucesso?}
+    AF -->|Sim| AG[Modo STA]
+    AF -->|Não| AH[Modo AP]
+    AD -->|Não| AH
+    
+    AH --> AI[Access Point]
+    
+    AG --> AJ[CommunicationManager]
+    AH --> AJ
+    
+    AJ --> AK[MessageHandler]
+    AJ --> AL[SecurityManager]
+    AJ --> AM[UDP Listener]
+    
+    AM --> AN{Broadcast Discovery}
+    AN --> AO[Enviar DISCOVERY]
+    
+    AM --> AP{Mensagem Recebida?}
+    AP -->|Sim| AQ[Processar Mensagem]
+    AQ --> AR{Decriptar & Validar}
+    AR -->|Válida| AS[Router para Handler]
+    AR -->|Inválida| AT[Descartar]
+    
+    AS --> AU[SERVER_ONLINE]
+    AS --> AV[WASTE_TYPE]
+    AS --> AW[HEARTBEAT_REQUEST]
+    AS --> AX[SYSTEM_COMMAND]
+    
+    AU --> AY[Registrar Servidor]
+    AV --> AZ[Mover Servo]
+    AW --> BA[Responder Heartbeat]
+    AX --> BB[Executar Comando]
+    
+    AZ --> BC{Índice Válido?}
+    BC -->|Sim| BD[Mover para Posição]
+    BD --> BE[Aguardar Delay]
+    BE --> BF[Resetar Servo]
+    BC -->|Não| BG[Enviar ERRO]
+    
+    Z --> BH{Detecção de Movimento?}
+    BH -->|Sim| BI[Cooldown Check]
+    BI -->|OK| BJ[Notificar Servidor]
+    BJ --> BK{Servidor Conectado?}
+    BK -->|Sim| BL[Enviar MOVEMENT_DETECTED]
+    BK -->|Não| BM[Log Local]
+    
+    AJ --> BN[Manutenção Conexão]
+    BN --> BO{Conectado?}
+    BO -->|Sim| BP{Heartbeat Due?}
+    BP -->|Sim| BQ[Enviar HEARTBEAT]
+    BO -->|Não| BR[Broadcast Discovery]
+    
+    S --> BT[SystemMonitor]
+    BT --> BU{Verificação Periódica}
+    BU --> BV[Memória Livre]
+    BU --> BW[GC Collect]
+    BU --> BX[Log Status]
+    
+    S --> BY[StatusLEDController]
+    BY --> BZ{Estado Conexão}
+    BZ -->|Conectado| CA[LED Fixo]
+    BZ -->|AP Mode| CB[LED Rápido]
+    BZ -->|WiFi Only| CC[LED Lento]
+    BZ -->|Desconectado| CD[LED Off]
+    
+    S --> CE[ErrorHandler]
+    CE --> CF{Operação com Retry}
+    CF --> CG[Tentativa 1]
+    CG --> CH{Sucesso?}
+    CH -->|Não| CI[Tentativa 2]
+    CI --> CJ{Sucesso?}
+    CJ -->|Não| CK[Tentativa 3]
+    CK --> CL{Sucesso?}
+    CL -->|Não| CM[Falha Registrada]
+    CL -->|Sim| CN[Sucesso]
+    
+    CM --> CO{Max Falhas?}
+    CO -->|Sim| CP[Recovery System]
+    CP --> CQ[Soft Reset]
+    CQ --> CR{Hard Reset}
+    
+    S --> CS[PowerManager]
+    CS --> CT{Otimização Energia}
+    CT --> CU[Bateria Baixa]
+    CT --> CV[Atividade Baixa]
+    CT --> CW[Modo Normal]
+    
+    CU --> CX[Sleep Extendido]
+    CV --> CY[Sleep Moderado]
+    CW --> CZ[Sleep Normal]
+
+    style A fill:#e1f5fe
+    style R fill:#f3e5f5
+    style AJ fill:#e8f5e8
+    style AZ fill:#fff3e0
+    style CP fill:#ffebee
