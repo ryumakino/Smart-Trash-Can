@@ -1,95 +1,76 @@
-# src/core/base_classes.py - Classes base corrigidas
-import json
+# base_classes_refactored.py – DRY + SOLID
+import json, logging
 from abc import ABC, abstractmethod
 
 class BaseService(ABC):
-    """Classe base para todos os serviços com funcionalidades comuns"""
-    
-    def __init__(self, config_section=None):
+    def __init__(self, config_section: str | None = None):
         self._config_manager = None
-        self._config = {}
-        self._logger = None
+        self._config: dict = {}
+        self._logger: logging.Logger | None = None
         self._initialized = False
-        self._config_section = config_section  # Armazenar a seção de configuração
-        
-        # Configurar logger básico inicialmente
+        self._config_section = config_section
         self._setup_basic_logger()
-    
-    def _setup_basic_logger(self):
-        """Configurar logger básico inicial"""
-        import logging
-        logger_name = self.__class__.__name__
-        self._logger = logging.getLogger(logger_name)
-        
-        # Só configurar se não tiver handlers
-        if not self._logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s | %(name)s | %(levelname)s | %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S'
-            )
-            handler.setFormatter(formatter)
-            self._logger.addHandler(handler)
-            self._logger.setLevel(logging.INFO)
-            self._logger.propagate = False
-    
-    def initialize(self):
-        """Método de inicialização padrão - pode ser sobrescrito"""
+
+    # ---------- lifecycle ---------- #
+    def initialize(self) -> bool:
         if not self._initialized:
             self._initialized = True
             self.logger.info(f"✅ {self.__class__.__name__} inicializado")
         return True
-    
-    def set_config_manager(self, config_manager):
-        """Injetar ConfigManager após a criação"""
-        self._config_manager = config_manager
-        # Aplicar configuração se houver uma seção definida
-        if self._config_section and self._config_manager:
-            config_method = getattr(self._config_manager, f"get_{self._config_section.lower()}_config", None)
-            if config_method:
-                self._config = config_method()
+
+    def cleanup(self):
+        self._initialized = False
+        if self._logger:
+            self._logger.info(f"{self.__class__.__name__} cleanup completed")
+
+    # ---------- configuration ---------- #
+    def set_config_manager(self, manager):
+        self._config_manager = manager
+        if self._config_section:
+            method = getattr(self._config_manager, f"get_{self._config_section.lower()}_config", None)
+            if method:
+                self._config = method()
                 self.logger.debug(f"✅ Configuração '{self._config_section}' carregada")
-    
-    def set_config_section(self, config_section):
-        """Configurar seção de configuração (para uso posterior)"""
-        self._config_section = config_section
-        # Se já tiver config_manager, aplicar imediatamente
-        if self._config_manager and config_section:
-            config_method = getattr(self._config_manager, f"get_{config_section.lower()}_config", None)
-            if config_method:
-                self._config = config_method()
-    
+
+    def set_config_section(self, section: str):
+        self._config_section = section
+        if self._config_manager:
+            self.set_config_manager(self._config_manager)
+
+    # ---------- logging ---------- #
+    def _setup_basic_logger(self):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        if not self._logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                '%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            ))
+            self._logger.addHandler(handler)
+            self._logger.setLevel(logging.INFO)
+            self._logger.propagate = False
+
     def setup_logger(self):
-        """Configurar logger apropriado após inicialização"""
-        # Esta função pode ser sobrescrita por serviços específicos
-        # para usar um logger mais avançado
         try:
             from src.utils.utils import get_logger
             self._logger = get_logger(self.__class__.__name__)
         except ImportError:
-            # Manter o logger básico se não conseguir importar
             pass
-    
+
     @property
-    def logger(self):
+    def logger(self) -> logging.Logger:
         return self._logger
-    
+
     @property
-    def config(self):
+    def config(self) -> dict:
         return self._config
-    
+
     @property
-    def is_initialized(self):
+    def is_initialized(self) -> bool:
         return self._initialized
-    
-    def cleanup(self):
-        """Método de limpeza opcional"""
-        self._initialized = False
-        if self._logger:
-            self._logger.info(f"{self.__class__.__name__} cleanup completed")
-    
-    def get_status(self):
-        """Status padrão do serviço"""
+
+    # ---------- status ---------- #
+    def get_status(self) -> dict:
         return {
             'initialized': self._initialized,
             'service_name': self.__class__.__name__,
@@ -98,34 +79,23 @@ class BaseService(ABC):
         }
 
 class ConfigurableMixin:
-    """Mixin para acesso padronizado à configuração"""
-    
-    def get_config_value(self, key, default=None, config_section=None):
-        """Obter valor de configuração de forma segura"""
-        config = self._config
-        
-        # Usar seção específica se fornecida, senão usar a seção padrão do serviço
-        target_section = config_section or getattr(self, '_config_section', None)
-        
-        if target_section and hasattr(self, '_config_manager') and self._config_manager:
-            config_method = getattr(self._config_manager, f"get_{target_section.lower()}_config", None)
-            if config_method:
-                config = config_method()
-        
-        return config.get(key, default)
+    def get_config_value(self, key: str, default=None, config_section: str | None = None):
+        section = config_section or getattr(self, '_config_section', None)
+        cfg = self._config
+        if section and hasattr(self, '_config_manager') and self._config_manager:
+            method = getattr(self._config_manager, f"get_{section.lower()}_config", None)
+            if method:
+                cfg = method()
+        return cfg.get(key, default)
 
 class MessageHandlerMixin:
-    """Mixin para processamento padronizado de mensagens"""
-    
-    def handle_message_pattern(self, msg, addr, patterns):
-        """Processar mensagem baseado em padrões"""
+    def handle_message_pattern(self, msg: str, addr: tuple[str, int], patterns: dict) -> any:
         for pattern, handler in patterns.items():
             if msg.startswith(pattern):
                 return handler(msg, pattern, addr)
         return None
-    
-    def extract_json_payload(self, msg, prefix):
-        """Extrair payload JSON de mensagem prefixada"""
+
+    def extract_json_payload(self, msg: str, prefix: str) -> dict | None:
         try:
             return json.loads(msg.split(prefix, 1)[1])
         except (json.JSONDecodeError, IndexError, ValueError) as e:

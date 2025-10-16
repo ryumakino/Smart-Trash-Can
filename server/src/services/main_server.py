@@ -1,207 +1,117 @@
-#!/usr/bin/env python3
-"""
-Servidor principal do sistema TrashNet
-"""
-
-import time
-import threading
-import queue
-import json
+# main_server_refactored.py – DRY + SOLID
+import time, threading, queue, json
 from src.core.base_classes import BaseService, ConfigurableMixin
 
 class TrashNetServer(BaseService, ConfigurableMixin):
     def __init__(self):
         super().__init__('server')
-        self.running = True
-        self.classification_queue = queue.Queue()
-        self.classification_thread = threading.Thread(
-            target=self._classification_processor, 
-            daemon=True
-        )
+        self._running = True
+        self._queue: queue.Queue[tuple[str, str]] = queue.Queue()
+        self._thread = threading.Thread(target=self._processor_loop, daemon=True)
 
-    def initialize(self):
-        """Inicializar servidor principal"""
-        if self._initialized:
-            return True
-            
-        try:
-            self._initialized = True
-            self.logger.success("TrashNetServer inicializado")
-            return True
-        except Exception as e:
-            self.logger.error(f"Erro na inicialização: {e}")
-            return False
+    # ---------- lifecycle ---------- #
+    def initialize(self) -> bool:
+        if self._initialized: return True
+        self._initialized = True
+        self.logger.success("TrashNetServer inicializado")
+        return True
 
-    def start(self):
-        """Iniciar servidor principal"""
-        if not self.initialize():
-            return False
-            
+    def start(self) -> bool:
+        if not self.initialize(): return False
         self.logger.info("Iniciando Servidor TrashNet...")
-        
+        self._setup_communicator()
+        self._thread.start()
+        self._main_loop()
+        return True
+
+    def stop(self):
+        self._running = False
+        from src.core.app_config import get_server_communicator
+        comm = get_server_communicator()
+        if comm: comm.stop()
+        self.logger.info("🛑 Servidor TrashNet parado")
+
+    # ---------- public api ---------- #
+    def send_system_command(self, device_id: str, command: str) -> bool:
         try:
-            # Configurar callback de movimento
             from src.core.app_config import get_server_communicator
-            communicator = get_server_communicator()
-            communicator.set_movement_callback(self._handle_movement_detected)
-            
-            # Iniciar componentes
-            communicator.start()
-                
-            self.classification_thread.start()
-            
-            self._main_loop()
-            return True
-            
+            comm = get_server_communicator()
+            cmd_map = {"RESTART": "SYSTEM_COMMAND:RESTART", "STATUS": "SYSTEM_COMMAND:STATUS",
+                       "DISCOVER": "SYSTEM_COMMAND:DISCOVER", "GET_INFO": "SYSTEM_COMMAND:GET_INFO"}
+            if command not in cmd_map:
+                self.logger.warning(f"Comando não reconhecido: {command}")
+                return False
+            return comm.send_to_device(device_id, cmd_map[command])
         except Exception as e:
-            self.logger.error(f"❌ Erro ao iniciar servidor: {e}")
+            self.logger.error(f"Erro ao enviar comando para {device_id}: {e}")
             return False
+
+    def get_system_status(self) -> dict:
+        from src.core.app_config import get_server_communicator, get_classification_service, get_database
+        comm = get_server_communicator()
+        cls = get_classification_service()
+        db = get_database()
+        return {
+            'server': self.get_status(),
+            'communication': comm.get_communication_stats() if comm else {},
+            'classification_service': cls.get_status() if cls else {},
+            'database': db.get_statistics() if db else {}
+        }
+
+    # ---------- internal ---------- #
+    def _setup_communicator(self):
+        from src.core.app_config import get_server_communicator
+        comm = get_server_communicator()
+        comm.set_movement_callback(self._handle_movement_detected)
+        comm.start()
 
     def _main_loop(self):
-        """Loop principal do servidor"""
-        while self.running:
+        while self._running:
             time.sleep(1)
 
-    def _classification_processor(self):
-        """Processar classificações na fila"""
-        while self.running:
+    def _processor_loop(self):
+        while self._running:
             try:
-                if not self.classification_queue.empty():
-                    device_id, device_ip = self.classification_queue.get_nowait()
-                    self._process_classification(device_id, device_ip)
-                time.sleep(0.1)
+                device_id, device_ip = self._queue.get(timeout=0.1)
+                self._process_classification(device_id, device_ip)
+            except queue.Empty:
+                continue
             except Exception as e:
                 self.logger.error(f"Erro no processador: {e}")
                 time.sleep(1)
 
-    def _handle_movement_detected(self, device_id, device_ip):
-        """Manipular detecção de movimento"""
+    def _handle_movement_detected(self, device_id: str, device_ip: str):
         self.logger.info(f"🎯 Movimento detectado: {device_id}")
-        self.classification_queue.put((device_id, device_ip))
+        self._queue.put((device_id, device_ip))
 
-    def _process_classification(self, device_id, device_ip):
-        """Processar classificação para dispositivo"""
-        try:
-            from src.core.app_config import (
-                get_device_registry, 
-                get_classification_service,
-                get_server_communicator,
-                get_database
-            )
-            
-            device_registry = get_device_registry()
-            device_info = device_registry.get_device(device_id)
-            
-            if not device_info:
-                self.logger.error(f"Dispositivo {device_id} não encontrado")
-                return
-
-            device_name = device_info.get('device_name', device_id)
-            self.logger.info(f"🔍 Iniciando classificação para {device_name}")
-            
-            # Executar classificação
-            classification_service = get_classification_service()
-            result = classification_service.classify_waste()
-            
-            if result:
-                self._handle_classification_result(device_id, device_name, result)
-            else:
-                self._handle_classification_failure(device_id)
-                
-        except Exception as e:
-            self.logger.error(f"❌ Erro ao processar classificação para {device_id}: {e}")
-            from src.core.app_config import get_server_communicator
-            get_server_communicator().send_to_device(device_id, "WASTE_TYPE:-1:ERRO")
-
-    def _handle_classification_result(self, device_id, device_name, result):
-        """Manipular resultado bem-sucedido da classificação"""
-        from src.core.app_config import get_database, get_server_communicator
-        
-        # Salvar no banco
-        database = get_database()
-        result['device_id'] = device_id
-        database.save_classification(result)
-        
-        # Encontrar system_index se não estiver presente
-        if 'system_index' not in result:
-            from src.core.app_config import TRASHNET_CONFIG
-            system_classes = TRASHNET_CONFIG.get("SYSTEM_CLASSES", ["PLASTICO", "PAPEL", "VIDRO", "METAL", "LIXO", "PAPELAO"])
-            try:
-                system_index = system_classes.index(result['system_class'])
-            except ValueError:
-                system_index = -1
-            result['system_index'] = system_index
-        
-        # Enviar comando para dispositivo
-        communicator = get_server_communicator()
-        command = f"WASTE_TYPE:{result['system_index']}:{result['system_class']}"
-        
-        if communicator.send_to_device(device_id, command):
-            icon = "🎭" if result.get('is_mock') else "✅"
-            self.logger.success(
-                f"{icon} Resíduo classificado para {device_name}: "
-                f"{result['system_class']} (Confiança: {result['confidence']:.2%})"
-            )
-            
-            # Enviar status atualizado
-            status_update = f"CLASSIFICATION_RESULT:{json.dumps(result)}"
-            communicator.send_to_device(device_id, status_update)
+    def _process_classification(self, device_id: str, device_ip: str):
+        from src.core.app_config import get_device_registry, get_classification_service, get_server_communicator, get_database
+        reg = get_device_registry()
+        info = reg.get_device(device_id)
+        if not info:
+            self.logger.error(f"Dispositivo {device_id} não encontrado")
+            return
+        cls = get_classification_service()
+        result = cls.classify_waste()
+        if result:
+            self._handle_success(device_id, info.get('device_name', device_id), result)
         else:
-            self.logger.error(f"❌ Falha ao enviar comando para {device_name}")
+            self._handle_failure(device_id)
 
-    def _handle_classification_failure(self, device_id):
-        """Manipular falha na classificação"""
+    def _handle_success(self, device_id: str, name: str, result: dict):
+        from src.core.app_config import get_database, get_server_communicator
+        db = get_database()
+        result['device_id'] = device_id
+        db.save_classification(result)
+        comm = get_server_communicator()
+        idx = result.get('system_index', -1)
+        cmd = f"WASTE_TYPE:{idx}:{result['system_class']}"
+        if comm.send_to_device(device_id, cmd):
+            icon = "🎭" if result.get('is_mock') else "✅"
+            self.logger.success(f"{icon} Resíduo classificado para {name}: {result['system_class']} (Confiança: {result['confidence']:.2%})")
+            comm.send_to_device(device_id, f"CLASSIFICATION_RESULT:{json.dumps(result)}")
+
+    def _handle_failure(self, device_id: str):
         from src.core.app_config import get_server_communicator
-        communicator = get_server_communicator()
-        communicator.send_to_device(device_id, "WASTE_TYPE:-1:INDETERMINADO")
+        get_server_communicator().send_to_device(device_id, "WASTE_TYPE:-1:INDETERMINADO")
         self.logger.warning(f"❌ Classificação falhou para {device_id}")
-
-    def stop(self):
-        """Parar servidor"""
-        self.running = False
-        from src.core.app_config import get_server_communicator
-        communicator = get_server_communicator()
-        if communicator:
-            communicator.stop()
-        self.logger.info("🛑 Servidor TrashNet parado")
-
-    def get_system_status(self):
-        """Obter status completo do sistema"""
-        from src.core.app_config import (
-            get_server_communicator,
-            get_classification_service, 
-            get_database
-        )
-        
-        communicator = get_server_communicator()
-        classification_service = get_classification_service()
-        database = get_database()
-        
-        return {
-            'server': self.get_status(),
-            'communication': communicator.get_communication_stats() if communicator else {},
-            'classification_service': classification_service.get_status() if classification_service else {},
-            'database': database.get_statistics() if database else {}
-        }
-
-    def send_system_command(self, device_id, command):
-        """Enviar comando de sistema para dispositivo"""
-        try:
-            from src.core.app_config import get_server_communicator
-            communicator = get_server_communicator()
-            
-            if command == "RESTART":
-                return communicator.send_to_device(device_id, "SYSTEM_COMMAND:RESTART")
-            elif command == "STATUS":
-                return communicator.send_to_device(device_id, "SYSTEM_COMMAND:STATUS")
-            elif command == "DISCOVER":
-                return communicator.send_to_device(device_id, "SYSTEM_COMMAND:DISCOVER")
-            elif command == "GET_INFO":
-                return communicator.send_to_device(device_id, "SYSTEM_COMMAND:GET_INFO")
-            else:
-                self.logger.warning(f"Comando não reconhecido: {command}")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Erro ao enviar comando para {device_id}: {e}")
-            return False

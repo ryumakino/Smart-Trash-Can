@@ -1,0 +1,31 @@
+{
+  "MQTTConfig": {
+    "BROKER_HOST": "broker.hivemq.com",
+    "BROKER_PORT": 1883,
+    "KEEPALIVE": 60,
+    "TOPIC_PREFIX": "trashnet",
+    "QOS": 1
+  },
+  "CameraConfig": {
+    "CAMERA_INDEX": 0,
+    "CAPTURE_WIDTH": 640,
+    "CAPTURE_HEIGHT": 480
+  },
+  "TrashNetConfig": {
+    "MODEL_WEIGHTS_PATH": "models/trashnet_model.h5",
+    "MODEL_INPUT_SIZE": [224, 224],
+    "CONFIDENCE_THRESHOLD": 0.6,
+    "CLASS_MAPPING": {
+      "cardboard": "PAPELAO",
+      "glass": "VIDRO",
+      "metal": "METAL",
+      "paper": "PAPEL",
+      "plastic": "PLASTICO",
+      "trash": "LIXO"
+    }
+  },
+  "SystemConfig": {
+    "LOG_LEVEL": "INFO",
+    "TEST_IMAGES_DIR": "test_images"
+  }
+}

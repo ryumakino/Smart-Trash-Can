@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="settings-page">
+  <!-- Navegação por abas -->
+  <div class="tabs-navigation">
+    <div class="tabs">
+      <button class="tab-button active" onclick="openTab(event, 'TabConfig')">
+        <i class="fas fa-sliders-h"></i>
+        <span>Configurações</span>
+      </button>
+      <button class="tab-button" onclick="openTab(event, 'TabFiles')">
+        <i class="fas fa-folder"></i>
+        <span>Arquivos</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Aba Configurações -->
+  <div id="TabConfig" class="tab-content active">
+    <div class="config-header">
+      <h3><i class="fas fa-cog"></i> Configurações do Sistema</h3>
+      <div class="config-actions">
+        <button class="btn btn-outline" onclick="resetToDefaults()">
+          <i class="fas fa-undo"></i> Restaurar Padrões
+        </button>
+        <button class="btn btn-primary" onclick="saveAllConfig()">
+          <i class="fas fa-save"></i> Salvar Tudo
+        </button>
+      </div>
+    </div>
+
+    <form id="config-form" class="config-form">
+      {% for sec_name, sec_dict in config.items() %}
+      <div class="config-section">
+        <div class="section-header">
+          <h4>{{ sec_name }}</h4>
+          <span class="section-badge">{{ sec_dict|length }} configurações</span>
+        </div>
+        
+        <div class="config-grid">
+          {% for key, value in sec_dict.items() %}
+          <div class="config-item">
+            <label class="config-label">
+              <span class="label-text">{{ key }}</span>
+              {% if value is sameas true or value is sameas false %}
+              <div class="toggle-switch">
+                <input type="checkbox" name="{{ sec_name }}.{{ key }}" {% if value %}checked{% endif %}>
+                <span class="slider"></span>
+              </div>
+              {% elif value is number %}
+                {% if value is integer %}
+                <input type="number" name="{{ sec_name }}.{{ key }}" value="{{ value }}" class="config-input">
+                {% else %}
+                <input type="number" step="0.1" name="{{ sec_name }}.{{ key }}" value="{{ value }}" class="config-input">
+                {% endif %}
+              {% else %}
+              <input type="text" name="{{ sec_name }}.{{ key }}" value="{{ value }}" class="config-input">
+              {% endif %}
+            </label>
+            <div class="config-description">
+              <!-- Descrição será adicionada via JavaScript -->
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </form>
+
+    <div class="config-footer">
+      <div id="save-result" class="save-result"></div>
+      <button type="submit" form="config-form" class="btn btn-primary btn-large">
+        <i class="fas fa-save"></i> Salvar Alterações
+      </button>
+    </div>
+  </div>
+
+  <!-- Aba Arquivos -->
+  <div id="TabFiles" class="tab-content">
+    <div class="files-header">
+      <h3><i class="fas fa-file-alt"></i> Gerenciamento de Arquivos</h3>
+      <div class="files-actions">
+        <button class="btn btn-outline" onclick="refreshFiles()">
+          <i class="fas fa-sync-alt"></i> Atualizar
+        </button>
+      </div>
+    </div>
+
+    <div class="files-container">
+      {% for pasta, lista in arquivos.items() %}
+      <div class="file-category">
+        <div class="category-header">
+          <div class="category-info">
+            <i class="fas fa-folder"></i>
+            <h4>{{ pasta.title() }}</h4>
+            <span class="file-count">{{ lista|length }} arquivos</span>
+          </div>
+          <div class="category-size">
+            {{ lista|sum(attribute='size')|filesizeformat }}
+          </div>
+        </div>
+
+        {% if lista %}
+        <div class="files-grid">
+          {% for f in lista %}
+          <div class="file-card">
+            <div class="file-icon">
+              {% if f.path.endswith('.jpg') or f.path.endswith('.png') or f.path.endswith('.jpeg') %}
+              <i class="fas fa-image"></i>
+              {% elif f.path.endswith('.py') %}
+              <i class="fas fa-code"></i>
+              {% elif f.path.endswith('.log') %}
+              <i class="fas fa-file-alt"></i>
+              {% elif f.path.endswith('.h5') or f.path.endswith('.pth') %}
+              <i class="fas fa-brain"></i>
+              {% elif f.path.endswith('.json') or f.path.endswith('.yaml') %}
+              <i class="fas fa-cog"></i>
+              {% else %}
+              <i class="fas fa-file"></i>
+              {% endif %}
+            </div>
+            
+            <div class="file-info">
+              <div class="file-name" title="{{ f.path }}">
+                {{ f.path.split('/')[-1] if '/' in f.path else f.path.split('\\')[-1] }}
+              </div>
+              <div class="file-details">
+                <span class="file-size">{{ f.size|filesizeformat }}</span>
+                <span class="file-date">{{ f.mtime }}</span>
+              </div>
+            </div>
+            
+            <div class="file-actions">
+              <a href="/download?f={{ f.path }}" class="btn-icon" title="Baixar">
+                <i class="fas fa-download"></i>
+              </a>
+              {% if f.path.startswith("test_images/") and f.path.endswith(('.jpg', '.png', '.jpeg')) %}
+              <a href="/{{ f.path }}" class="btn-icon" target="_blank" title="Visualizar">
+                <i class="fas fa-eye"></i>
+              </a>
+              {% endif %}
+              {% if not f.path.startswith(('models/', 'templates/')) %}
+              <button class="btn-icon btn-danger" onclick="deleteFile('{{ f.path }}')" title="Excluir">
+                <i class="fas fa-trash"></i>
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-folder-open"></i>
+          <p>Nenhum arquivo nesta pasta</p>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<style>
+.settings-page {
+  padding: 20px;
+}
+
+.tabs-navigation {
+  margin-bottom: 30px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tabs {
+  display: flex;
+  gap: 5px;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.tab-button.active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+  background: var(--bg-card);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Configurações */
+.config-header, .files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.config-header h3, .files-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+}
+
+.config-actions, .files-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.config-section {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 25px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h4 {
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-badge {
+  background: var(--accent-primary);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.config-item {
+  padding: 15px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.config-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.label-text {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.config-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  width: 200px;
+}
+
+.config-description {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--accent-primary);
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+.config-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.save-result {
+  font-weight: 500;
+}
+
+.save-result.success { color: #00b894; }
+.save-result.error { color: #e84393; }
+
+/* Arquivos */
+.files-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.file-category {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.category-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category-info h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.category-info i {
+  color: var(--accent-primary);
+}
+
+.file-count {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.category-size {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.file-icon {
+  font-size: 1.5rem;
+  color: var(--accent-primary);
+  width: 40px;
+  text-align: center;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.file-details {
+  display: flex;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.file-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.btn-icon {
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-danger:hover {
+  background: #e84393;
+  color: white;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+}
+
+.empty-state i {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+.btn-large {
+  padding: 12px 24px;
+  font-size: 1rem;
+}
+</style>
+
+<script>
+function openTab(evt, tabName) {
+  // Esconder todas as abas
+  document.querySelectorAll('.tab-content').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Remover active de todos os botões
+  document.querySelectorAll('.tab-button').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Mostrar aba selecionada
+  document.getElementById(tabName).classList.add('active');
+  evt.currentTarget.classList.add('active');
+}
+
+// Configurações
+document.getElementById('config-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await saveConfig();
+});
+
+async function saveConfig() {
+  const form = document.getElementById('config-form');
+  const data = {};
+  const formData = new FormData(form);
+  
+  formData.forEach((value, key) => {
+    const [sec, k] = key.split('.');
+    if (!data[sec]) data[sec] = {};
+    
+    // Conversão de tipos
+    if (value === 'on') value = true; // toggle switch
+    else if (value === 'true') value = true;
+    else if (value === 'false') value = false;
+    else if (!isNaN(value) && value.includes('.')) value = parseFloat(value);
+    else if (!isNaN(value)) value = parseInt(value);
+    
+    data[sec][k] = value;
+  });
+
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    
+    const result = await res.json();
+    const saveResult = document.getElementById('save-result');
+    
+    if (result.success) {
+      saveResult.textContent = '✅ Configurações salvas com sucesso!';
+      saveResult.className = 'save-result success';
+    } else {
+      saveResult.textContent = '❌ Erro ao salvar configurações.';
+      saveResult.className = 'save-result error';
+    }
+    
+    // Limpar mensagem após 3 segundos
+    setTimeout(() => {
+      saveResult.textContent = '';
+      saveResult.className = 'save-result';
+    }, 3000);
+    
+  } catch (error) {
+    const saveResult = document.getElementById('save-result');
+    saveResult.textContent = '❌ Erro de conexão.';
+    saveResult.className = 'save-result error';
+  }
+}
+
+function resetToDefaults() {
+  if (confirm('Tem certeza que deseja restaurar todas as configurações para os valores padrão?')) {
+    // Implementar reset para padrões
+    alert('Funcionalidade de reset em desenvolvimento.');
+  }
+}
+
+function saveAllConfig() {
+  document.getElementById('config-form').dispatchEvent(new Event('submit'));
+}
+
+// Arquivos
+function refreshFiles() {
+  location.reload();
+}
+
+function deleteFile(filePath) {
+  if (confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`)) {
+    fetch(`/api/files/delete?path=${encodeURIComponent(filePath)}`, {
+      method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(result => {
+      if (result.success) {
+        alert('Arquivo excluído com sucesso!');
+        location.reload();
+      } else {
+        alert('Erro ao excluir arquivo: ' + result.error);
+      }
+    })
+    .catch(error => {
+      alert('Erro de conexão: ' + error.message);
+    });
+  }
+}
+</script>
+{% endblock %}

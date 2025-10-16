@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="devices-page">
+  <div class="page-header">
+    <h2>Dispositivos Conectados</h2>
+    <div class="header-actions">
+      <button class="btn" onclick="refreshDevices()">
+        <i class="fas fa-sync-alt"></i>
+        Atualizar
+      </button>
+      <button class="btn btn-primary" onclick="openMQTTControl()">
+        <i class="fas fa-satellite-dish"></i>
+        Controle MQTT
+      </button>
+      <button class="btn btn-success" onclick="broadcastMQTTCommand('GET_INFO')">
+        <i class="fas fa-download"></i>
+        Buscar Informações
+      </button>
+    </div>
+  </div>
+
+  <!-- Status MQTT -->
+  <div class="mqtt-status-bar">
+    <div class="status-indicator" id="mqttStatus">
+      <i class="fas fa-circle"></i>
+      <span>Verificando MQTT...</span>
+    </div>
+    <div class="status-info">
+      <span id="mqttBroker">broker.hivemq.com:1883</span>
+      <span id="mqttMessages">0 mensagens</span>
+      <span id="mqttDevicesCount">{{ devices|length }} dispositivos</span>
+    </div>
+  </div>
+
+  <!-- Status Summary -->
+  <div class="devices-summary">
+    <div class="summary-card">
+      <i class="fas fa-microchip"></i>
+      <div>
+        <h3>Total de Dispositivos</h3>
+        <p id="total-devices">{{ devices|length }}</p>
+      </div>
+    </div>
+    <div class="summary-card">
+      <i class="fas fa-wifi"></i>
+      <div>
+        <h3>Online</h3>
+        <p id="online-devices" class="text-success">0</p>
+      </div>
+    </div>
+    <div class="summary-card">
+      <i class="fas fa-plug"></i>
+      <div>
+        <h3>Offline</h3>
+        <p id="offline-devices" class="text-danger">0</p>
+      </div>
+    </div>
+    <div class="summary-card">
+      <i class="fas fa-trash"></i>
+      <div>
+        <h3>Classificações</h3>
+        <p id="total-classifications">0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de Dispositivos -->
+  <div class="devices-container">
+    {% if devices %}
+    <div class="table-container">
+      <table id="devices-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Status</th>
+            <th>Firmware</th>
+            <th>Último Sinal</th>
+            <th>Classificações</th>
+            <th>Último Movimento</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for device_id, device in devices.items() %}
+          <tr class="device-row" data-device-id="{{ device_id }}">
+            <td>
+              <code>{{ device_id }}</code>
+            </td>
+            <td>
+                <div class="device-info">
+                    <i class="fas fa-microchip device-icon"></i>
+                    <div class="device-details">
+                        <span class="device-name">{{ device.device_name }}</span>
+                        <small class="device-type">{{ device.device_type }}</small>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="status-badge {% if device.status == 'online' %}online{% else %}offline{% endif %}">
+                    <i class="fas fa-circle"></i>
+                    {{ 'Online' if device.status == 'online' else 'Offline' }}
+                </span>
+            </td>
+            <td>
+              <span class="firmware-version">
+                {{ device.firmware_version or '1.0.0' }}
+              </span>
+            </td>
+            <td>
+              <span class="last-seen" title="{{ device.last_seen|datetime }}">
+                {{ device.last_seen|datetime if device.last_seen else 'Nunca' }}
+              </span>
+            </td>
+            <td>
+              <span class="classification-count">
+                {{ device.classifications_count or 0 }}
+              </span>
+            </td>
+            <td>
+              <span class="last-movement" title="{{ device.last_movement|datetime }}">
+                {{ device.last_movement|datetime if device.last_movement else '—' }}
+              </span>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button class="btn-icon" onclick="requestDeviceInfo('{{ device_id }}')" title="Buscar Informações">
+                  <i class="fas fa-download"></i>
+                </button>
+                <button class="btn-icon" onclick="sendMQTTCommand('{{ device_id }}', 'STATUS')" title="Solicitar Status">
+                  <i class="fas fa-sync"></i>
+                </button>
+                <button class="btn-icon" onclick="openServoControl('{{ device_id }}')" title="Controlar Servo">
+                  <i class="fas fa-robot"></i>
+                </button>
+                <button class="btn-icon btn-danger" onclick="sendMQTTCommand('{{ device_id }}', 'RESTART')" title="Reiniciar">
+                  <i class="fas fa-power-off"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <!-- Estado Vazio -->
+    <div class="empty-state">
+      <div class="empty-icon">
+        <i class="fas fa-microchip-slash"></i>
+      </div>
+      <h3>Nenhum Dispositivo Encontrado</h3>
+      <p>Não há dispositivos registrados. Os dispositivos aparecerão aqui quando enviarem mensagens MQTT.</p>
+      <div class="empty-actions">
+        <button class="btn" onclick="refreshDevices()">
+          <i class="fas fa-sync-alt"></i>
+          Atualizar
+        </button>
+        <button class="btn btn-primary" onclick="broadcastMQTTCommand('GET_INFO')">
+          <i class="fas fa-broadcast-tower"></i>
+          Buscar Dispositivos
+        </button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Modal de Controle MQTT -->
+<div id="mqttControlModal" class="modal">
+  <div class="modal-content large-modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-satellite-dish"></i> Controle MQTT</h3>
+      <button class="btn-icon" onclick="closeModal('mqttControlModal')">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="mqtt-control-panel">
+        <div class="control-section">
+          <h4>Comandos Rápidos</h4>
+          <div class="quick-commands">
+            <button class="btn" onclick="broadcastMQTTCommand('GET_INFO')">
+              <i class="fas fa-download"></i> Buscar Informações de Todos
+            </button>
+            <button class="btn" onclick="broadcastMQTTCommand('STATUS')">
+              <i class="fas fa-sync"></i> Solicitar Status de Todos
+            </button>
+            <button class="btn btn-warning" onclick="broadcastMQTTCommand('RESTART')">
+              <i class="fas fa-power-off"></i> Reiniciar Todos
+            </button>
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h4>Controle de Servo</h4>
+          <div class="servo-control">
+            <div class="form-group">
+              <label>Dispositivo:</label>
+              <select id="servoControlDevice">
+                {% for device_id in devices.keys() %}
+                <option value="{{ device_id }}">{{ device_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Ângulo do Servo (0-180°):</label>
+              <input type="range" id="servoAngle" min="0" max="180" value="90" oninput="updateServoValue(this.value)">
+              <span id="servoValue">90°</span>
+            </div>
+            <div class="servo-buttons">
+              <button class="btn" onclick="moveServoToAngle()">
+                <i class="fas fa-robot"></i> Mover Servo
+              </button>
+              <button class="btn" onclick="moveServoToWasteType(0)">Repouso</button>
+              <button class="btn" onclick="moveServoToWasteType(1)">Plástico</button>
+              <button class="btn" onclick="moveServoToWasteType(2)">Papel</button>
+              <button class="btn" onclick="moveServoToWasteType(3)">Metal</button>
+              <button class="btn" onclick="moveServoToWasteType(4)">Vidro</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h4>Comando Personalizado</h4>
+          <div class="custom-command">
+            <div class="form-group">
+              <label>Dispositivo:</label>
+              <select id="customCommandDevice">
+                <option value="broadcast">Todos os Dispositivos</option>
+                {% for device_id in devices.keys() %}
+                <option value="{{ device_id }}">{{ device_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Comando:</label>
+              <select id="customCommandType">
+                <option value="GET_INFO">GET_INFO</option>
+                <option value="STATUS">STATUS</option>
+                <option value="MOVE_SERVO">MOVE_SERVO</option>
+                <option value="WASTE_TYPE">WASTE_TYPE</option>
+                <option value="RESTART">RESTART</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </div>
+            <div class="form-group" id="customPayloadGroup" style="display: none;">
+              <label>Payload (JSON):</label>
+              <textarea id="customCommandPayload" placeholder='{"angle": 90}' rows="3"></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="sendCustomMQTTCommand()">
+              <i class="fas fa-paper-plane"></i> Enviar Comando
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Informações do Dispositivo -->
+<div id="deviceInfoModal" class="modal">
+  <div class="modal-content large-modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-info-circle"></i> Informações do Dispositivo</h3>
+      <button class="btn-icon" onclick="closeModal('deviceInfoModal')">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="deviceInfoContent">
+        <!-- Conteúdo carregado via JavaScript -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/devices.js') }}"></script>
+
+<style>
+.mqtt-status-bar {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-indicator.connected {
+  color: #28a745;
+}
+
+.status-indicator.disconnected {
+  color: #dc3545;
+}
+
+.status-indicator.connecting {
+  color: #ffc107;
+}
+
+.status-info {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.quick-commands {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.servo-control, .custom-command {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.servo-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.device-type {
+  font-size: 0.75rem;
+  color: #666;
+  display: block;
+}
+
+.firmware-version {
+  font-family: monospace;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.last-movement {
+  font-size: 0.875rem;
+  color: #666;
+}
+</style>
+{% endblock %}

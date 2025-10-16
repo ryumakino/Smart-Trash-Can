@@ -1,81 +1,38 @@
 {
-  "DeviceConfig": {
-    "DEVICE_ID": "TRASH_AI_A1B2C3",
-    "DEVICE_NAME": "Lixeira Inteligente",
-    "DEVICE_TYPE": "TRASH_CAN",
-    "DEVICE_LOCATION": "Sala de Reuniões",
-    "DEVICE_VERSION": "1.0.0",
-    "DEVICE_MANUFACTURER": "MAKEDC",
-    "AUTO_GENERATE_ID": true
+  "device": {
+    "id": "TRASH_AI_ESP32_001",
+    "name": "Lixeira Inteligente - ESP32",
+    "type": "TRASH_CAN",
+    "location": "Sala de Reuniões"
   },
-  "WiFiConfig": {
-    "SSID": "makedc",
-    "PASSWORD": "deco747387",
-    "MAX_RETRIES": 3,
-    "RETRY_DELAY": 5,
-    "AP_SSID_PREFIX": "TRASH_AI_",
-    "AP_PASSWORD": "trashai2024",
-    "AP_CHANNEL": 6
+  "wifi": {
+    "ssid": "",
+    "password": "",
+    "max_retries": 3
   },
-  "NetworkConfig": {
-    "UDP_PORT": 8888,
-    "BROADCAST_PORT": 8888,
-    "SERVER_IP": "",
-    "SERVER_PORT": 8888,
-    "AUTO_DISCOVER_SERVER": true,
-    "DISCOVERY_INTERVAL": 30,
-    "HEARTBEAT_INTERVAL": 60,
-    "AUTH_KEY": "TR4SH_4I_S3CUR3_K3Y_2024_M4K3DC_D3C0747387",
-    "ENABLED_PROTOCOLS": ["STA", "AP", "SERIAL"]
+  "mqtt": {
+    "broker": "broker.hivemq.com",
+    "port": 1883,
+    "topic_base": "trashnet",
+    "qos": 1,
+    "keepalive": 60
   },
-  "SerialConfig": {
-    "UART_ID": 1,
-    "BAUDRATE": 115200,
-    "ENABLED": true,
-    "COMMAND_DELIMITER": "\n"
+  "servo": {
+    "pin": 18,
+    "freq": 50,
+    "min_duty": 40,
+    "max_duty": 115,
+    "angles": [0, 45, 90, 135, 180],
+    "waste_types": ["Repouso", "Plástico", "Papel", "Metal", "Vidro"]
   },
-  "SystemConfig": {
-    "STATUS_LED_PIN": 2,
-    "HEARTBEAT_INTERVAL": 60,
-    "AP_MODE_BLINK_INTERVAL": 2,
-    "LOG_LEVEL": "INFO",
-    "MEMORY_CRITICAL": 4000,
-    "MEMORY_WARNING": 8000,
-    "GC_THRESHOLD": 20000
+  "sensors": {
+    "ir_pin": 34,
+    "check_interval": 0.1,
+    "movement_cooldown": 10
   },
-  "ServoConfig": {
-    "SERVO_PIN": 18,
-    "SERVO_FREQ": 50,
-    "SERVO_MIN_DUTY": 40,
-    "SERVO_MAX_DUTY": 115,
-    "SERVO_RESET_DELAY": 3,
-    "SERVO_ANGLES": [0, 45, 90, 135, 180],
-    "WASTE_TYPES": ["Repouso", "Plástico", "Papel", "Metal", "Vidro"]
-  },
-  "IRSensorConfig": {
-    "IR_SENSOR_PIN": 34,
-    "ACTIVE_HIGH": true,
-    "CHECK_INTERVAL": 0.1,
-    "DETECTION_THRESHOLD": 2
-  },
-  "ErrorHandlingConfig": {
-    "MAX_RETRIES": 3,
-    "BASE_RETRY_DELAY": 1,
-    "MAX_RETRY_DELAY": 30,
-    "MAX_FAILURES_BEFORE_RECOVERY": 5,
-    "FAILURE_TIMEOUT": 300
-  },
-  "PowerConfig": {
-    "SLEEP_ENABLED": true,
-    "LIGHT_SLEEP_INTERVAL": 5,
-    "DEEP_SLEEP_INTERVAL": 60,
-    "NETWORK_SCAN_INTERVAL": 10
-  },
-  "HealthCheckConfig": {
-    "HEALTH_CHECK_INTERVAL": 60,
-    "MEMORY_WARNING_PERCENT": 70,
-    "MEMORY_CRITICAL_PERCENT": 85,
-    "UPTIME_WARNING_SECONDS": 86400,
-    "UPTIME_CRITICAL_SECONDS": 604800
+  "system": {
+    "led_pin": 2,
+    "health_check_interval": 30,
+    "classification_timeout": 30
   }
 }

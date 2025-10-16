@@ -1,333 +1,534 @@
-// static/js/devices.js - Gerenciamento de dispositivos ESP32
+// devices.js - Gerenciamento de Dispositivos com MQTT
 
-export class ESP32DeviceManager {
-    constructor() {
-        this.devices = {};
-        this.autoRefresh = true;
-        this.refreshInterval = null;
+class DevicesManager {
+    static init() {
+        this.updateSummary();
+        this.setupEventListeners();
+        this.startAutoRefresh();
+        this.checkMQTTStatus();
     }
 
-    async loadDevices() {
-        try {
-            const response = await fetch('/api/esp32_devices');
-            const data = await response.json();
-            
-            if (data.error) {
-                console.error('Erro ao carregar dispositivos:', data.error);
-                return;
-            }
-            
-            this.devices = data.devices;
-            this.updateDevicesUI();
-            this.updateServerStats(data.server_stats);
-            
-        } catch (error) {
-            console.error('Erro ao carregar dispositivos:', error);
-        }
-    }
-
-    updateDevicesUI() {
-        const container = document.getElementById('esp32DevicesContainer');
-        if (!container) return;
-
-        const devices = Object.values(this.devices);
-        
-        if (devices.length === 0) {
-            container.innerHTML = `
-                <div class="no-devices">
-                    <p>📡 Nenhum dispositivo ESP32 conectado</p>
-                    <button class="btn" onclick="deviceManager.sendDiscovery()">
-                        🔍 Procurar Dispositivos
-                    </button>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = devices.map(device => this.createDeviceCard(device)).join('');
-    }
-
-    createDeviceCard(device) {
-        const lastSeen = this.formatLastSeen(device.last_seen);
-        const statusClass = this.getStatusClass(device.last_seen);
-        
-        return `
-            <div class="device-card ${statusClass}">
-                <div class="device-header">
-                    <h3>${device.device_name || 'ESP32'}</h3>
-                    <span class="device-status ${statusClass}"></span>
-                </div>
-                
-                <div class="device-info">
-                    <div class="info-row">
-                        <label>ID:</label>
-                        <span class="device-id">${device.device_id}</span>
-                    </div>
-                    <div class="info-row">
-                        <label>IP:</label>
-                        <span>${device.ip_address}</span>
-                    </div>
-                    <div class="info-row">
-                        <label>Rede:</label>
-                        <span class="network-badge ${device.network_mode?.toLowerCase()}">
-                            ${device.network_mode || 'UNKNOWN'}
-                        </span>
-                    </div>
-                    <div class="info-row">
-                        <label>Última vez:</label>
-                        <span>${lastSeen}</span>
-                    </div>
-                </div>
-
-                <div class="device-actions">
-                    <button class="btn btn-small" onclick="deviceManager.sendCommand('${device.device_id}', 'SYSTEM_COMMAND', {command: 'STATUS'})">
-                        📊 Status
-                    </button>
-                    <button class="btn btn-small btn-success" onclick="deviceManager.showWasteMenu('${device.device_id}')">
-                        🗑️ Enviar Resíduo
-                    </button>
-                    <button class="btn btn-small btn-warning" onclick="deviceManager.showConfigModal('${device.device_id}')">
-                        ⚙️ Configurar
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    updateServerStats(stats) {
-        const statsElem = document.getElementById('esp32ServerStats');
-        if (!statsElem) return;
-
-        statsElem.innerHTML = `
-            <div class="server-stats">
-                <div class="stat">
-                    <span class="stat-value">${stats.esp32_connected || 0}</span>
-                    <span class="stat-label">Dispositivos Conectados</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">${stats.messages_processed || 0}</span>
-                    <span class="stat-label">Mensagens Processadas</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">${this.formatUptime(stats.uptime)}</span>
-                    <span class="stat-label">Uptime Servidor</span>
-                </div>
-            </div>
-        `;
-    }
-
-    getStatusClass(lastSeen) {
-        const now = Date.now() / 1000;
-        const diff = now - lastSeen;
-        
-        if (diff < 60) return 'status-online';
-        if (diff < 300) return 'status-warning';
-        return 'status-offline';
-    }
-
-    formatLastSeen(timestamp) {
-        const now = Date.now() / 1000;
-        const diff = now - timestamp;
-        
-        if (diff < 60) return 'Agora mesmo';
-        if (diff < 3600) return `${Math.floor(diff / 60)} min atrás`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)} h atrás`;
-        return `${Math.floor(diff / 86400)} dias atrás`;
-    }
-
-    formatUptime(seconds) {
-        if (!seconds) return '0s';
-        
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        
-        if (hours > 0) return `${hours}h ${minutes}m`;
-        return `${minutes}m`;
-    }
-
-    async sendCommand(deviceId, commandType, commandData = {}) {
-        try {
-            const response = await fetch('/api/esp32/send_command', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    device_id: deviceId,
-                    command_type: commandType,
-                    command_data: commandData
-                })
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                this.showNotification(result.message, 'success');
-                // Recarregar dispositivos após comando
-                setTimeout(() => this.loadDevices(), 1000);
+    static setupEventListeners() {
+        // Event listener para comando personalizado
+        document.getElementById('customCommandType')?.addEventListener('change', function(e) {
+            const payloadGroup = document.getElementById('customPayloadGroup');
+            if (e.target.value === 'custom' || e.target.value === 'MOVE_SERVO' || e.target.value === 'WASTE_TYPE') {
+                payloadGroup.style.display = 'block';
             } else {
-                this.showNotification(result.error, 'error');
-            }
-            
-        } catch (error) {
-            console.error('Erro ao enviar comando:', error);
-            this.showNotification('Erro ao enviar comando', 'error');
-        }
-    }
-
-    async sendDiscovery() {
-        await this.sendCommand('broadcast', 'DISCOVERY');
-    }
-
-    showWasteMenu(deviceId) {
-        const wasteTypes = [
-            { index: 0, name: "🔄 Repouso" },
-            { index: 1, name: "🧪 Plástico" },
-            { index: 2, name: "📄 Papel" },
-            { index: 3, name: "🔩 Metal" },
-            { index: 4, name: "🥃 Vidro" }
-        ];
-
-        const menu = wasteTypes.map(waste => `
-            <button class="waste-btn" onclick="deviceManager.sendCommand('${deviceId}', 'WASTE_COMMAND', {waste_index: ${waste.index}, waste_name: '${waste.name}'})">
-                ${waste.name}
-            </button>
-        `).join('');
-
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <h3>🗑️ Selecionar Tipo de Resíduo</h3>
-                <div class="waste-menu">
-                    ${menu}
-                </div>
-                <button class="btn" onclick="this.closest('.modal').remove()">Cancelar</button>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-    }
-
-    showConfigModal(deviceId) {
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <h3>⚙️ Configurar ${deviceId}</h3>
-                <form id="configForm">
-                    <div class="form-group">
-                        <label>Nome do Dispositivo:</label>
-                        <input type="text" name="device_name" placeholder="Novo nome...">
-                    </div>
-                    <div class="form-group">
-                        <label>Intervalo Heartbeat (segundos):</label>
-                        <input type="number" name="heartbeat_interval" value="60" min="10" max="300">
-                    </div>
-                    <div class="form-group">
-                        <label>Reinicializar após config:</label>
-                        <input type="checkbox" name="restart_required">
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn" onclick="this.closest('.modal').remove()">Cancelar</button>
-                        <button type="submit" class="btn btn-success">Salvar Configuração</button>
-                    </div>
-                </form>
-            </div>
-        `;
-
-        const form = modal.querySelector('#configForm');
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            this.saveConfig(deviceId, new FormData(form));
-            modal.remove();
-        };
-
-        document.body.appendChild(modal);
-    }
-
-    async saveConfig(deviceId, formData) {
-        const config = {
-            system: {
-                DEVICE_NAME: formData.get('device_name') || undefined
-            },
-            communication: {
-                HEARTBEAT_INTERVAL: parseInt(formData.get('heartbeat_interval')) || undefined
-            }
-        };
-
-        // Remove undefined values
-        Object.keys(config).forEach(key => {
-            if (!config[key] || Object.keys(config[key]).length === 0) {
-                delete config[key];
+                payloadGroup.style.display = 'none';
             }
         });
 
-        try {
-            const response = await fetch('/api/esp32/setup_config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    device_id: deviceId,
-                    config: config,
-                    restart_required: formData.get('restart_required') === 'on'
-                })
-            });
+        // Event listener para dispositivo do servo
+        document.getElementById('servoControlDevice')?.addEventListener('change', function(e) {
+            // Atualizar também o dispositivo do comando personalizado
+            document.getElementById('customCommandDevice').value = e.target.value;
+        });
+    }
 
-            const result = await response.json();
+    static updateSummary() {
+        const totalDevices = document.querySelectorAll('.device-row').length;
+        const onlineDevices = document.querySelectorAll('.status-badge.online').length;
+        const offlineDevices = totalDevices - onlineDevices;
+        
+        let totalClassifications = 0;
+        document.querySelectorAll('.classification-count').forEach(el => {
+            totalClassifications += parseInt(el.textContent) || 0;
+        });
+
+        document.getElementById('total-devices').textContent = totalDevices;
+        document.getElementById('online-devices').textContent = onlineDevices;
+        document.getElementById('offline-devices').textContent = offlineDevices;
+        document.getElementById('total-classifications').textContent = totalClassifications;
+    }
+
+    static async checkMQTTStatus() {
+        try {
+            const response = await fetch('/api/mqtt/status');
+            if (response.ok) {
+                const status = await response.json();
+                this.updateMQTTStatusUI(status);
+            }
+        } catch (error) {
+            console.error('Erro ao verificar status MQTT:', error);
+            this.updateMQTTStatusUI({ connected: false });
+        }
+    }
+
+    static updateMQTTStatusUI(status) {
+        const statusElement = document.getElementById('mqttStatus');
+        const brokerElement = document.getElementById('mqttBroker');
+        const messagesElement = document.getElementById('mqttMessages');
+        const devicesCountElement = document.getElementById('mqttDevicesCount');
+
+        if (status.connected) {
+            statusElement.className = 'status-indicator connected';
+            statusElement.innerHTML = '<i class="fas fa-circle"></i> <span>MQTT Conectado</span>';
+        } else {
+            statusElement.className = 'status-indicator disconnected';
+            statusElement.innerHTML = '<i class="fas fa-circle"></i> <span>MQTT Desconectado</span>';
+        }
+
+        brokerElement.textContent = status.broker || 'broker.hivemq.com:1883';
+        messagesElement.textContent = `${status.message_count || 0} mensagens`;
+        devicesCountElement.textContent = `${status.devices_count || 0} dispositivos`;
+    }
+
+    static startAutoRefresh() {
+        // Atualizar status a cada 10 segundos
+        setInterval(() => {
+            this.refreshDevicesStatus();
+            this.checkMQTTStatus();
+        }, 10000);
+    }
+
+    static async refreshDevicesStatus() {
+        try {
+            const response = await fetch('/api/devices');
             
-            if (result.success) {
-                this.showNotification('Configuração enviada com sucesso!', 'success');
-                this.loadDevices();
-            } else {
-                this.showNotification(result.error, 'error');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
             }
             
+            const devices = await response.json();
+            this.updateDevicesUI(devices);
+            
         } catch (error) {
-            console.error('Erro ao salvar configuração:', error);
-            this.showNotification('Erro ao salvar configuração', 'error');
+            console.error('Erro ao atualizar status:', error);
         }
     }
 
-    showNotification(message, type = 'info') {
-        // Reutilize a função de notificação existente ou implemente uma simples
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed; top: 20px; right: 20px;
-            padding: 15px 20px; border-radius: 8px; color: white;
-            z-index: 10000; background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
-        `;
+    static updateDevicesUI(devices) {
+        // Para cada dispositivo na resposta, atualizar a UI
+        Object.entries(devices).forEach(([deviceId, device]) => {
+            const row = document.querySelector(`[data-device-id="${deviceId}"]`);
+            
+            if (!row) {
+                // Se não existe, precisaríamos adicionar à tabela
+                // Por simplicidade, vamos recarregar a página
+                window.location.reload();
+                return;
+            }
+
+            // Atualizar status
+            const statusBadge = row.querySelector('.status-badge');
+            statusBadge.className = `status-badge ${device.status}`;
+            statusBadge.innerHTML = `<i class="fas fa-circle"></i> ${device.status === 'online' ? 'Online' : 'Offline'}`;
+
+            // Atualizar último sinal
+            const lastSeen = row.querySelector('.last-seen');
+            if (device.last_seen) {
+                lastSeen.textContent = new Date(device.last_seen).toLocaleString('pt-BR');
+                lastSeen.title = new Date(device.last_seen).toLocaleString('pt-BR');
+            }
+
+            // Atualizar classificações
+            const classificationCount = row.querySelector('.classification-count');
+            classificationCount.textContent = device.classifications_count || 0;
+
+            // Atualizar último movimento
+            const lastMovement = row.querySelector('.last-movement');
+            if (device.last_movement) {
+                lastMovement.textContent = new Date(device.last_movement).toLocaleString('pt-BR');
+                lastMovement.title = new Date(device.last_movement).toLocaleString('pt-BR');
+            } else {
+                lastMovement.textContent = '—';
+            }
+
+            // Atualizar firmware
+            const firmwareVersion = row.querySelector('.firmware-version');
+            firmwareVersion.textContent = device.firmware_version || '1.0.0';
+
+            // Atualizar nome se necessário
+            const deviceName = row.querySelector('.device-name');
+            if (device.device_name && deviceName.textContent !== device.device_name) {
+                deviceName.textContent = device.device_name;
+            }
+        });
         
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 4000);
-    }
-
-    startAutoRefresh() {
-        if (this.autoRefresh) {
-            this.refreshInterval = setInterval(() => this.loadDevices(), 5000);
-        }
-    }
-
-    stopAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
-    }
-
-    toggleAutoRefresh() {
-        this.autoRefresh = !this.autoRefresh;
-        if (this.autoRefresh) {
-            this.startAutoRefresh();
-        } else {
-            this.stopAutoRefresh();
-        }
+        this.updateSummary();
     }
 }
 
-// Instância global
-window.deviceManager = new ESP32DeviceManager();
+// Funções MQTT
+async function requestDeviceInfo(deviceId) {
+    try {
+        LoadingManager.show();
+        
+        const response = await fetch(`/api/devices/${deviceId}/request-info`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            NotificationSystem.show(result.message, 'success');
+            
+            // Aguardar um pouco e então mostrar informações
+            setTimeout(() => {
+                showDeviceInfo(deviceId);
+            }, 2000);
+            
+        } else {
+            throw new Error(result.error || 'Erro ao solicitar informações');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao solicitar informações:', error);
+        NotificationSystem.show('Erro ao solicitar informações: ' + error.message, 'error');
+    } finally {
+        LoadingManager.hide();
+    }
+}
+
+async function showDeviceInfo(deviceId) {
+    try {
+        const response = await fetch(`/api/devices/${deviceId}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const device = await response.json();
+        
+        const modal = document.getElementById('deviceInfoModal');
+        const content = document.getElementById('deviceInfoContent');
+        
+        content.innerHTML = `
+            <div class="device-info-details">
+                <div class="info-section">
+                    <h4>Informações Básicas</h4>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>ID:</label>
+                            <span><code>${device.device_id}</code></span>
+                        </div>
+                        <div class="info-item">
+                            <label>Nome:</label>
+                            <span>${device.device_name}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Tipo:</label>
+                            <span>${device.device_type}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Firmware:</label>
+                            <span>${device.firmware_version}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Status:</label>
+                            <span class="status-badge ${device.status}">${device.status}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Último Sinal:</label>
+                            <span>${device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'Nunca'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                ${device.hardware_info && Object.keys(device.hardware_info).length > 0 ? `
+                <div class="info-section">
+                    <h4>Hardware</h4>
+                    <pre class="config-json">${JSON.stringify(device.hardware_info, null, 2)}</pre>
+                </div>
+                ` : ''}
+
+                ${device.system_info && Object.keys(device.system_info).length > 0 ? `
+                <div class="info-section">
+                    <h4>Sistema</h4>
+                    <pre class="config-json">${JSON.stringify(device.system_info, null, 2)}</pre>
+                </div>
+                ` : ''}
+
+                ${device.config && Object.keys(device.config).length > 0 ? `
+                <div class="info-section">
+                    <h4>Configuração</h4>
+                    <pre class="config-json">${JSON.stringify(device.config, null, 2)}</pre>
+                </div>
+                ` : ''}
+
+                <div class="info-section">
+                    <h4>Estatísticas</h4>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Classificações:</label>
+                            <span>${device.classifications_count || 0}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Último Movimento:</label>
+                            <span>${device.last_movement ? new Date(device.last_movement).toLocaleString('pt-BR') : '—'}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Primeiro Registro:</label>
+                            <span>${device.first_seen ? new Date(device.first_seen).toLocaleString('pt-BR') : '—'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn" onclick="requestDeviceInfo('${device.device_id}')">
+                    <i class="fas fa-sync"></i>
+                    Atualizar Informações
+                </button>
+                <button class="btn btn-outline" onclick="closeModal('deviceInfoModal')">
+                    Fechar
+                </button>
+            </div>
+        `;
+        
+        modal.style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Erro ao carregar informações:', error);
+        NotificationSystem.show('Erro ao carregar informações do dispositivo', 'error');
+    }
+}
+
+async function sendMQTTCommand(deviceId, command, payload = null) {
+    try {
+        LoadingManager.show();
+        
+        const requestBody = { command };
+        if (payload) {
+            requestBody.payload = payload;
+        }
+
+        const response = await fetch(`/api/devices/${deviceId}/send-command`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            NotificationSystem.show(result.message, 'success');
+        } else {
+            throw new Error(result.error || 'Erro ao enviar comando');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao enviar comando MQTT:', error);
+        NotificationSystem.show('Erro ao enviar comando: ' + error.message, 'error');
+    } finally {
+        LoadingManager.hide();
+    }
+}
+
+async function broadcastMQTTCommand(command, payload = null) {
+    if (!confirm(`Enviar comando ${command} para todos os dispositivos?`)) return;
+
+    try {
+        LoadingManager.show();
+        
+        const requestBody = { command };
+        if (payload) {
+            requestBody.payload = payload;
+        }
+
+        const response = await fetch('/api/devices/broadcast', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            NotificationSystem.show(result.message, 'success');
+            
+            // Mostrar resultados detalhados
+            const successful = result.results.filter(r => r.success).length;
+            const failed = result.results.filter(r => !r.success).length;
+            
+            if (failed > 0) {
+                NotificationSystem.show(`${successful} sucesso, ${failed} falhas`, 'warning', 5000);
+            }
+        } else {
+            throw new Error(result.error || 'Erro no broadcast');
+        }
+        
+    } catch (error) {
+        console.error('Erro no broadcast MQTT:', error);
+        NotificationSystem.show('Erro no broadcast: ' + error.message, 'error');
+    } finally {
+        LoadingManager.hide();
+    }
+}
+
+// Funções de controle do servo
+function openMQTTControl() {
+    const modal = document.getElementById('mqttControlModal');
+    modal.style.display = 'flex';
+}
+
+function updateServoValue(value) {
+    document.getElementById('servoValue').textContent = value + '°';
+}
+
+async function moveServoToAngle() {
+    const angle = parseInt(document.getElementById('servoAngle').value);
+    const deviceId = document.getElementById('servoControlDevice').value;
+    
+    await sendMQTTCommand(deviceId, 'MOVE_SERVO', { angle });
+}
+
+async function moveServoToWasteType(index) {
+    const wasteTypes = ['Repouso', 'Plástico', 'Papel', 'Metal', 'Vidro'];
+    const deviceId = document.getElementById('servoControlDevice').value;
+    
+    await sendMQTTCommand(deviceId, 'WASTE_TYPE', { index });
+    NotificationSystem.show(`Movendo para: ${wasteTypes[index]}`, 'info');
+}
+
+async function sendCustomMQTTCommand() {
+    const deviceId = document.getElementById('customCommandDevice').value;
+    const commandType = document.getElementById('customCommandType').value;
+    const payloadInput = document.getElementById('customCommandPayload').value;
+    
+    let payload = null;
+    if (payloadInput && (commandType === 'custom' || commandType === 'MOVE_SERVO' || commandType === 'WASTE_TYPE')) {
+        try {
+            payload = JSON.parse(payloadInput);
+        } catch (e) {
+            NotificationSystem.show('Payload JSON inválido', 'error');
+            return;
+        }
+    }
+    
+    if (deviceId === 'broadcast') {
+        await broadcastMQTTCommand(commandType, payload);
+    } else {
+        await sendMQTTCommand(deviceId, commandType, payload);
+    }
+}
+
+function openServoControl(deviceId) {
+    document.getElementById('servoControlDevice').value = deviceId;
+    document.getElementById('customCommandDevice').value = deviceId;
+    document.getElementById('customCommandType').value = 'MOVE_SERVO';
+    document.getElementById('customPayloadGroup').style.display = 'block';
+    document.getElementById('customCommandPayload').value = '{"angle": 90}';
+    openMQTTControl();
+}
+
+// Funções auxiliares
+async function refreshDevices() {
+    try {
+        LoadingManager.show();
+        window.location.reload();
+    } catch (error) {
+        console.error('Erro ao atualizar dispositivos:', error);
+        NotificationSystem.show('Erro ao atualizar lista de dispositivos', 'error');
+    } finally {
+        LoadingManager.hide();
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    modal.style.display = 'none';
+}
+
+// Fechar modal ao clicar fora
+window.addEventListener('click', (event) => {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+});
+
+// Inicializar quando o DOM estiver carregado
+document.addEventListener('DOMContentLoaded', () => {
+    DevicesManager.init();
+});
+
+// Gerenciadores globais
+const LoadingManager = {
+    show: function() {
+        // Implementar overlay de loading se necessário
+        document.body.style.cursor = 'wait';
+    },
+    hide: function() {
+        document.body.style.cursor = 'default';
+    }
+};
+
+const NotificationSystem = {
+    show: function(message, type = 'info', duration = 3000) {
+        // Criar notificação
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas fa-${this.getIcon(type)}"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        // Estilos básicos
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${this.getColor(type)};
+            color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            max-width: 400px;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remover após duração
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, duration);
+    },
+    
+    getIcon: function(type) {
+        const icons = {
+            'success': 'check-circle',
+            'error': 'exclamation-circle',
+            'warning': 'exclamation-triangle',
+            'info': 'info-circle'
+        };
+        return icons[type] || 'info-circle';
+    },
+    
+    getColor: function(type) {
+        const colors = {
+            'success': '#28a745',
+            'error': '#dc3545',
+            'warning': '#ffc107',
+            'info': '#17a2b8'
+        };
+        return colors[type] || '#17a2b8';
+    }
+};

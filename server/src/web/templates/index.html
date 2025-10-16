@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard">
+  <div class="dashboard-header">
+    <h2>Monitoramento do Sistema</h2>
+    <div class="header-actions">
+      <span class="last-update" id="last-update"></span>
+      <button class="btn btn-outline" onclick="refreshAllData()">
+        <i class="fas fa-sync-alt"></i>
+        Atualizar Dados
+      </button>
+    </div>
+  </div>
+
+  <!-- Navegação por abas -->
+  <div class="dashboard-tabs">
+    <div class="tabs-navigation">
+      <button class="tab-button active" onclick="openDashboardTab(event, 'tab-cpu')">
+        <i class="fas fa-microchip"></i>
+        <span>CPU</span>
+      </button>
+      <button class="tab-button" onclick="openDashboardTab(event, 'tab-memory')">
+        <i class="fas fa-memory"></i>
+        <span>Memória</span>
+      </button>
+      <button class="tab-button" onclick="openDashboardTab(event, 'tab-storage')">
+        <i class="fas fa-hdd"></i>
+        <span>Armazenamento</span>
+      </button>
+      <button class="tab-button" onclick="openDashboardTab(event, 'tab-network')">
+        <i class="fas fa-network-wired"></i>
+        <span>Rede</span>
+      </button>
+      <button class="tab-button" onclick="openDashboardTab(event, 'tab-system')">
+        <i class="fas fa-server"></i>
+        <span>Sistema</span>
+      </button>
+      <button class="tab-button" onclick="openDashboardTab(event, 'tab-hardware')">
+        <i class="fas fa-desktop"></i>
+        <span>Hardware</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Aba CPU -->
+  <div id="tab-cpu" class="tab-content active">
+    <div class="metrics-section">
+      <h3><i class="fas fa-microchip"></i> Processador (CPU)</h3>
+      <div class="cards-grid">
+        <!-- Uso Geral da CPU -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-bolt"></i>
+            <h3>Uso da CPU</h3>
+          </div>
+          <div class="metric-value" id="cpu-usage">0%</div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="cpu-progress"></div>
+          </div>
+          <div class="metric-details">
+            <span id="cpu-cores">-- cores</span>
+            <span id="cpu-frequency">-- GHz</span>
+          </div>
+        </div>
+
+        <!-- Load Average -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-chart-line"></i>
+            <h3>Load Average</h3>
+          </div>
+          <div class="metric-value small" id="load-average">0.00, 0.00, 0.00</div>
+          <div class="metric-subtitle">1m, 5m, 15m</div>
+        </div>
+
+        <!-- Estatísticas de CPU -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-chart-bar"></i>
+            <h3>Estatísticas CPU</h3>
+          </div>
+          <div class="cpu-stats" id="cpu-stats">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+
+        <!-- Context Switches -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-exchange-alt"></i>
+            <h3>Context Switches</h3>
+          </div>
+          <div class="metric-value" id="context-switches">0</div>
+          <div class="metric-subtitle">Total</div>
+        </div>
+
+        <!-- Interrupts -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-bolt"></i>
+            <h3>Interrupts</h3>
+          </div>
+          <div class="metric-value" id="interrupts-count">0</div>
+          <div class="metric-subtitle">Total</div>
+        </div>
+
+        <!-- Uso por Core -->
+        <div class="metric-card large">
+          <div class="metric-header">
+            <i class="fas fa-microchip"></i>
+            <h3>Uso por Core</h3>
+          </div>
+          <div class="cores-container" id="cpu-cores-chart">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba Memória -->
+  <div id="tab-memory" class="tab-content">
+    <div class="metrics-section">
+      <h3><i class="fas fa-memory"></i> Memória</h3>
+      <div class="cards-grid">
+        <!-- Memória Principal -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-memory"></i>
+            <h3>Memória RAM</h3>
+          </div>
+          <div class="metric-value" id="memory-usage">0%</div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="memory-progress"></div>
+          </div>
+          <div class="metric-details" id="memory-details">-- / --</div>
+        </div>
+
+        <!-- Memória Swap -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-exchange-alt"></i>
+            <h3>Memória Swap</h3>
+          </div>
+          <div class="metric-value" id="swap-usage">0%</div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="swap-progress"></div>
+          </div>
+          <div class="metric-details" id="swap-details">-- / --</div>
+        </div>
+
+        <!-- Eficiência de Memória -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-tachometer-alt"></i>
+            <h3>Eficiência</h3>
+          </div>
+          <div class="metric-value" id="memory-efficiency">0%</div>
+          <div class="metric-subtitle">Cache + Buffers</div>
+        </div>
+
+        <!-- Atividade de Swap -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-exchange-alt"></i>
+            <h3>Atividade Swap</h3>
+          </div>
+          <div class="metric-value small" id="swap-activity">0 páginas/s</div>
+          <div class="metric-subtitle">Páginas trocadas</div>
+        </div>
+
+        <!-- Detalhes da Memória -->
+        <div class="metric-card large">
+          <div class="metric-header">
+            <i class="fas fa-memory"></i>
+            <h3>Detalhes da Memória</h3>
+          </div>
+          <div class="memory-detailed" id="memory-detailed">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba Armazenamento -->
+  <div id="tab-storage" class="tab-content">
+    <div class="metrics-section">
+      <h3><i class="fas fa-hdd"></i> Armazenamento</h3>
+      <div class="cards-grid">
+        <!-- Disco Principal -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-hdd"></i>
+            <h3>Disco Principal</h3>
+          </div>
+          <div class="metric-value" id="disk-usage">0%</div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="disk-progress"></div>
+          </div>
+          <div class="metric-details" id="disk-details">-- / --</div>
+        </div>
+
+        <!-- Estatísticas de I/O -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-hdd"></i>
+            <h3>Estatísticas I/O</h3>
+          </div>
+          <div class="io-stats" id="disk-io-stats">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+
+        <!-- Discos e Partições -->
+        <div class="metric-card large">
+          <div class="metric-header">
+            <i class="fas fa-hdd"></i>
+            <h3>Discos e Partições</h3>
+          </div>
+          <div class="disks-container" id="disk-usage-detailed">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba Rede -->
+  <div id="tab-network" class="tab-content">
+    <div class="metrics-section">
+      <h3><i class="fas fa-network-wired"></i> Rede</h3>
+      <div class="cards-grid">
+        <!-- Tráfego de Rede -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-network-wired"></i>
+            <h3>Tráfego</h3>
+          </div>
+          <div class="metric-value small" id="net-io">▲ 0 B | ▼ 0 B</div>
+          <div class="metric-subtitle">Upload | Download</div>
+        </div>
+
+        <!-- Conexões de Rede -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-plug"></i>
+            <h3>Conexões</h3>
+          </div>
+          <div class="metric-value small" id="network-connections">TCP: 0 | UDP: 0</div>
+          <div class="metric-subtitle">Conexões ativas</div>
+        </div>
+
+        <!-- Portas em Escuta -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-door-open"></i>
+            <h3>Portas</h3>
+          </div>
+          <div class="metric-value" id="listening-ports">0</div>
+          <div class="metric-subtitle">Portas em escuta</div>
+        </div>
+
+        <!-- Estatísticas Detalhadas -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-network-wired"></i>
+            <h3>Estatísticas Rede</h3>
+          </div>
+          <div class="net-stats" id="net-io-detailed">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba Sistema -->
+  <div id="tab-system" class="tab-content">
+    <div class="metrics-section">
+      <h3><i class="fas fa-server"></i> Sistema & Processos</h3>
+      <div class="cards-grid">
+        <!-- Processos -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-tasks"></i>
+            <h3>Processos</h3>
+          </div>
+          <div class="metric-value" id="process-count">0</div>
+          <div class="metric-subtitle">Ativos</div>
+        </div>
+
+        <!-- Threads -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-code-branch"></i>
+            <h3>Threads</h3>
+          </div>
+          <div class="metric-value" id="system-threads">0</div>
+          <div class="metric-subtitle">Total de threads</div>
+        </div>
+
+        <!-- Usuários -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-users"></i>
+            <h3>Usuários</h3>
+          </div>
+          <div class="metric-value" id="users-connected">0</div>
+          <div class="metric-subtitle">Conectados</div>
+        </div>
+
+        <!-- Uptime -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-clock"></i>
+            <h3>Uptime</h3>
+          </div>
+          <div class="metric-value" id="uptime">0:00:00</div>
+          <div class="metric-subtitle">Tempo ativo</div>
+        </div>
+
+        <!-- Top Processos -->
+        <div class="metric-card large">
+          <div class="metric-header">
+            <i class="fas fa-list-ol"></i>
+            <h3>Top Processos (CPU)</h3>
+          </div>
+          <div class="processes-container" id="top-processes">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba Hardware -->
+  <div id="tab-hardware" class="tab-content">
+    <div class="metrics-section">
+      <h3><i class="fas fa-desktop"></i> Hardware</h3>
+      <div class="cards-grid">
+        <!-- Temperatura -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-thermometer-half"></i>
+            <h3>Temperatura</h3>
+          </div>
+          <div class="metric-value" id="temperature">--°C</div>
+          <div class="metric-subtitle">CPU</div>
+        </div>
+
+        <!-- Bateria -->
+        <div class="metric-card">
+          <div class="metric-header">
+            <i class="fas fa-battery-half"></i>
+            <h3>Bateria</h3>
+          </div>
+          <div class="metric-value" id="battery">--%</div>
+          <div class="metric-subtitle">Status</div>
+        </div>
+
+        <!-- GPU -->
+        <div class="metric-card large">
+          <div class="metric-header">
+            <i class="fas fa-desktop"></i>
+            <h3>GPU</h3>
+          </div>
+          <div class="gpu-container" id="gpu-info">
+            <!-- Gerado dinamicamente -->
+          </div>
+        </div>
+
+        <!-- Informações do Sistema -->
+        <div class="metric-card system-info">
+          <div class="metric-header">
+            <i class="fas fa-server"></i>
+            <h3>Informações do Sistema</h3>
+          </div>
+          <div class="system-details">
+            <div class="system-item">
+              <span class="label">Hostname:</span>
+              <span class="value" id="system-hostname">--</span>
+            </div>
+            <div class="system-item">
+              <span class="label">Plataforma:</span>
+              <span class="value" id="system-platform">--</span>
+            </div>
+            <div class="system-item">
+              <span class="label">Python:</span>
+              <span class="value" id="system-python">--</span>
+            </div>
+            <div class="system-item">
+              <span class="label">Arquitetura:</span>
+              <span class="value" id="system-arch">--</span>
+            </div>
+            <div class="system-item">
+              <span class="label">Processador:</span>
+              <span class="value" id="system-processor">--</span>
+            </div>
+            <div class="system-item">
+              <span class="label">Sistema:</span>
+              <span class="value" id="system-version">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+.dashboard {
+  padding: 20px;
+}
+
+.dashboard-tabs {
+  margin-bottom: 20px;
+}
+
+.tabs-navigation {
+  display: flex;
+  gap: 5px;
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.tab-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.tab-button.active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+  background: var(--bg-card);
+}
+
+.tab-content {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

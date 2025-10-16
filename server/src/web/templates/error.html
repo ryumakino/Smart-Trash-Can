@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <div class="error-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h1>{{ error_code }}</h1>
+        <h2>{{ error_message }}</h2>
+        <p class="error-description">
+            Desculpe, ocorreu um erro inesperado. Tente novamente ou volte para a página inicial.
+        </p>
+        <div class="error-actions">
+            <a href="{{ url_for('views.index') }}" class="btn">
+                <i class="fas fa-home"></i>
+                Voltar ao Início
+            </a>
+            <button onclick="window.history.back()" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i>
+                Voltar
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.error-content {
+    max-width: 500px;
+    padding: 2rem;
+}
+
+.error-icon {
+    font-size: 4rem;
+    color: var(--warning);
+    margin-bottom: 2rem;
+}
+
+.error-content h1 {
+    font-size: 4rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 1rem;
+}
+
+.error-content h2 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+}
+
+.error-description {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .error-actions {
+        flex-direction: column;
+    }
+    
+    .error-content h1 {
+        font-size: 3rem;
+    }
+}
+</style>
+{% endblock %}
